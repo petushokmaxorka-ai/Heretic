@@ -1,13 +1,25 @@
 // Preload — the only bridge. Renderer gets typed verbs, nothing more.
 
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type BrainConfig, type TrustMode } from '../shared/ipc'
+import { IPC, type BrainConfig, type TrustMode, type ChatRequestPayload } from '../shared/ipc'
 
 const api = {
   runSession: (task: string, brain: BrainConfig, trust: TrustMode, advisor?: BrainConfig): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.SESSION_RUN, { task, brain, advisor, trust }),
   scanBrains: (): Promise<{ name: string; baseUrl: string; models: string[] }[]> =>
     ipcRenderer.invoke(IPC.BRAINS_SCAN),
+  chatSend: (payload: ChatRequestPayload): Promise<{ answer: string; sources: { title: string; url: string; snippet: string }[]; error?: string }> =>
+    ipcRenderer.invoke(IPC.CHAT_SEND, payload),
+  onChatDelta: (cb: (d: string) => void): (() => void) => {
+    const h = (_e: unknown, v: { delta: string }): void => cb(v.delta)
+    ipcRenderer.on(IPC.CHAT_DELTA, h)
+    return () => ipcRenderer.removeListener(IPC.CHAT_DELTA, h)
+  },
+  onChatStatus: (cb: (line: string) => void): (() => void) => {
+    const h = (_e: unknown, v: { line: string }): void => cb(v.line)
+    ipcRenderer.on(IPC.CHAT_STATUS, h)
+    return () => ipcRenderer.removeListener(IPC.CHAT_STATUS, h)
+  },
   decideApproval: (id: number, ok: boolean): Promise<void> =>
     ipcRenderer.invoke(IPC.APPROVAL_DECIDE, { id, ok }),
   onStep: (cb: (step: { index: number; title: string; detail: string; verdict: string; note?: string; kind: string }) => void): (() => void) => {

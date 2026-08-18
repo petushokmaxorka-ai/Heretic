@@ -12,6 +12,10 @@ export interface ChatMessage {
 export interface ChatOptions {
   maxTokens?: number
   temperature?: number
+  /** stream tokens as they arrive (brains that can, will) */
+  onDelta?: (t: string) => void
+  /** reasoning-effort hint: low/medium/high/max — honored by backends that support it */
+  reasoningEffort?: string
 }
 
 /** A brain is any OpenAI-compatible chat endpoint (local runtime or cloud API). */

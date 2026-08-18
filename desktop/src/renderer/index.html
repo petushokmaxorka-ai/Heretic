@@ -9,6 +9,10 @@
 <body>
   <header>
     <span class="brand">◆ HERETIC</span>
+    <nav class="tabs">
+      <button class="tab active" id="tab-chat">CHAT</button>
+      <button class="tab" id="tab-agent">AGENT</button>
+    </nav>
     <span id="brain-label" class="dim">brain: —</span>
     <span class="spacer"></span>
     <select id="trust" title="trust mode">
@@ -35,6 +39,23 @@
     </div>
   </section>
 
+  <section id="chatview" class="view">
+    <main id="chatlog">
+      <div class="dim small center" style="margin-top:40vh">спроси что угодно — организм ответит</div>
+    </main>
+    <footer>
+      <select id="think" title="thinking level">
+        <option value="low">low</option>
+        <option value="mid" selected>mid</option>
+        <option value="high">high</option>
+        <option value="max">max</option>
+      </select>
+      <label class="webtoggle"><input type="checkbox" id="web" /> web</label>
+      <input id="chat-input" placeholder="спроси что угодно…" autocomplete="off" />
+      <button id="send">SEND</button>
+    </footer>
+  </section>
+  <section id="agentview" class="view hidden">
   <main id="ledger">
     <div class="dim small center" style="margin-top:40vh">the ledger is empty — give the organism a task</div>
   </main>
@@ -44,6 +65,7 @@
     <input id="task" placeholder='task… (@brain prefix routes)' autocomplete="off" />
     <button id="ignite">IGNITE</button>
   </footer>
+  </section>
 
   <script type="module" src="main.ts"></script>
 </body>

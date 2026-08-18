@@ -19,6 +19,8 @@ import { fsTools } from './tools/fs.js'
 import { shellTool } from './tools/shell.js'
 import { vaultTools } from './tools/vault.js'
 import { Sandbox } from './tools/sandbox.js'
+import { runChat } from './engine/chat.js'
+import { isThinkingLevel, type ThinkingLevel } from './thinking.js'
 import type { ApprovalPolicy, Brain, Step } from './protocol/types.js'
 
 const C = {
@@ -46,6 +48,9 @@ function usage(): string {
     '  --dry                deny all mutating steps (safe rehearsal)',
     '  --list-brains        scan localhost runtimes and exit',
     '  --advisor <url|echo> council mode: advisor debates, brain executes',
+  '  chat                chat subcommand: node out/src/cli.js chat [question]',
+  '    --web             enable web search in chat',
+  '    --thinking <lvl>  low | mid | high | max (default mid)',
     '  --advisor-model <id> model id for the advisor brain',
     '  --advisor-key <key>  api key for a cloud advisor',
     '',
@@ -79,7 +84,7 @@ async function interactivePolicy(): Promise<ApprovalPolicy> {
 }
 
 async function main(): Promise<number> {
-  const valueFlags = ['brain', 'model', 'key', 'root', 'max-steps', 'advisor', 'advisor-model', 'advisor-key']
+  const valueFlags = ['brain', 'model', 'key', 'root', 'max-steps', 'advisor', 'advisor-model', 'advisor-key', 'thinking']
   const argv = process.argv.slice(2)
 
   const positionals: string[] = []
@@ -100,9 +105,14 @@ async function main(): Promise<number> {
   const flag = (name: string): string | undefined => (typeof flags[name] === 'string' ? (flags[name] as string) : undefined)
   const has = (name: string): boolean => flags[name] === true
 
+  let chatMode = false
+  if (positionals[0] === 'chat') {
+    chatMode = true
+    positionals.shift()
+  }
   const task = positionals.join(' ')
 
-  if (has('help') || (!task && !has('list-brains'))) {
+  if (has('help') || (!task && !has('list-brains') && !chatMode)) {
     console.log(usage())
     return task ? 1 : 0
   }
@@ -142,6 +152,47 @@ async function main(): Promise<number> {
       console.log(`${C.teal}✓${C.off} brain: ${found.name} ${C.dim}${model ?? ''}${C.off}`)
     }
     brain = new OpenAIBrain('local', baseUrl, baseUrl, model ?? 'default', flag('key'))
+  }
+
+  if (chatMode) {
+    let web = has('web')
+    let thinking: ThinkingLevel = isThinkingLevel(flag('thinking') ?? '') ? (flag('thinking') as ThinkingLevel) : 'mid'
+    const rl = createInterface({ input: process.stdin, output: process.stdout })
+    const history: { role: 'user' | 'assistant'; content: string }[] = []
+
+    const ask = async (question: string): Promise<void> => {
+      history.push({ role: 'user', content: question })
+      process.stdout.write(`${C.teal}◆${C.off} `)
+      const { answer } = await runChat({
+        history,
+        brain,
+        thinking,
+        web,
+        onDelta: (d) => process.stdout.write(d),
+        onStatus: (l) => console.log(`${C.dim}⚙ ${l}${C.off}`)
+      })
+      history.push({ role: 'assistant', content: answer })
+      console.log(`\n${C.dim}[${brain.id} · ${thinking}${web ? ' · web' : ''}]${C.off}\n`)
+    }
+
+    if (task) {
+      await ask(task)
+      return 0
+    }
+    console.log(`${C.crimson}◆ HERETIC CHAT${C.off} ${C.dim}/web /think low|mid|high|max /exit${C.off}`)
+    for (;;) {
+      const q = (await rl.question(`${C.crimson}>${C.off} `)).trim()
+      if (!q) continue
+      if (q === '/exit') return 0
+      if (q === '/web') { web = !web; console.log(`${C.dim}web: ${web ? 'on' : 'off'}${C.off}`); continue }
+      if (q.startsWith('/think ')) {
+        const lvl = q.slice(7).trim()
+        if (isThinkingLevel(lvl)) { thinking = lvl; console.log(`${C.dim}thinking: ${lvl}${C.off}`) }
+        else console.log(`${C.red}✗${C.off} low | mid | high | max`)
+        continue
+      }
+      try { await ask(q) } catch (e) { console.log(`${C.red}✗${C.off} ${(e as Error).message}`) }
+    }
   }
 
   const policy = has('dry') ? denyAll : has('yes') ? autoAllow : await interactivePolicy()

@@ -17,31 +17,65 @@ export class OpenAIBrain implements Brain {
     private readonly apiKey?: string
   ) {}
 
-  async chat(messages: ChatMessage[], opts?: ChatOptions): Promise<string> {
+  async chat(messages: ChatMessage[], opts?: ChatOptions & { onDelta?: (t: string) => void; reasoningEffort?: string }): Promise<string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (this.apiKey) headers.Authorization = `Bearer ${this.apiKey}`
+
+    const stream = Boolean(opts?.onDelta)
+    const body: Record<string, unknown> = {
+      model: this.model,
+      messages,
+      max_tokens: opts?.maxTokens ?? 1024,
+      temperature: opts?.temperature ?? 0.3,
+      stream
+    }
+    // Backends that support reasoning control honor it; others ignore the field.
+    if (opts?.reasoningEffort) body.reasoning_effort = opts.reasoningEffort
 
     const res = await fetch(endpoint(this.baseUrl), {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        model: this.model,
-        messages,
-        max_tokens: opts?.maxTokens ?? 1024,
-        temperature: opts?.temperature ?? 0.3,
-        stream: false
-      }),
-      signal: AbortSignal.timeout(120_000)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(180_000)
     })
 
     if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      throw new Error(`brain "${this.id}" HTTP ${res.status}: ${body.slice(0, 300)}`)
+      const text = await res.text().catch(() => '')
+      throw new Error(`brain "${this.id}" HTTP ${res.status}: ${text.slice(0, 300)}`)
     }
 
-    const json = (await res.json()) as {
-      choices?: { message?: { content?: string } }[]
+    if (!stream || !res.body) {
+      const json = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+      return json.choices?.[0]?.message?.content ?? ''
     }
-    return json.choices?.[0]?.message?.content ?? ''
+
+    // SSE stream: data: {"choices":[{"delta":{"content":"…"}}]} … data: [DONE]
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let full = ''
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue
+        const payload = line.slice(5).trim()
+        if (!payload || payload === '[DONE]') continue
+        try {
+          const j = JSON.parse(payload) as { choices?: { delta?: { content?: string } }[] }
+          const delta = j.choices?.[0]?.delta?.content
+          if (delta) {
+            full += delta
+            opts?.onDelta?.(delta)
+          }
+        } catch {
+          // skip keep-alive / partial frames
+        }
+      }
+    }
+    return full
   }
 }

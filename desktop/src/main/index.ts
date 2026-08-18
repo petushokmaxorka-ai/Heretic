@@ -22,7 +22,8 @@ import { vaultTools } from '../../../src/tools/vault'
 import type { ApprovalPolicy, Brain } from '../../../src/protocol/types'
 import { createBrowserTool } from './browser-tool'
 import { initUpdater } from './updater'
-import { IPC, type BrainConfig, type TrustMode } from '../shared/ipc'
+import { IPC, type BrainConfig, type TrustMode, type ChatRequestPayload } from '../shared/ipc'
+import { runChat } from '../../../src/engine/chat'
 
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -109,6 +110,27 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.APPROVAL_DECIDE, (_e, { id, ok }: { id: number; ok: boolean }) => {
     pendingApprovals.get(id)?.(ok)
     pendingApprovals.delete(id)
+  })
+
+  let chatRunning = false
+  ipcMain.handle(IPC.CHAT_SEND, async (_e, payload: ChatRequestPayload) => {
+    if (chatRunning) return { answer: '', sources: [], error: 'chat busy' }
+    chatRunning = true
+    try {
+      const r = await runChat({
+        history: payload.history,
+        brain: buildBrain(payload.brain),
+        thinking: payload.thinking,
+        web: payload.web,
+        onDelta: (d) => send(IPC.CHAT_DELTA, { delta: d }),
+        onStatus: (line) => send(IPC.CHAT_STATUS, { line })
+      })
+      return { answer: r.answer, sources: r.sources }
+    } catch (e) {
+      return { answer: '', sources: [], error: (e as Error).message }
+    } finally {
+      chatRunning = false
+    }
   })
 
   ipcMain.handle(IPC.SESSION_RUN, async (_e, { task, brain, advisor, trust, root }: {

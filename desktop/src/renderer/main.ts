@@ -9,7 +9,13 @@ interface StepView {
   note?: string
 }
 
-interface HereticApi {
+interface ChatApi {
+  chatSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; thinking: string; web: boolean }): Promise<{ answer: string; sources: { title: string; url: string }[]; error?: string }>
+  onChatDelta(cb: (d: string) => void): () => void
+  onChatStatus(cb: (line: string) => void): () => void
+}
+
+interface HereticApi extends ChatApi {
   runSession(task: string, brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }, trust: string, advisor?: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }): Promise<{ ok: boolean; error?: string }>
   scanBrains(): Promise<{ name: string; baseUrl: string; models: string[] }[]>
   decideApproval(id: number, ok: boolean): Promise<void>
@@ -131,4 +137,89 @@ $('ignite').addEventListener('click', () => {
 
 $('task').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') $('ignite').click()
+})
+
+// ── tabs ──
+const showView = (id: 'chat' | 'agent'): void => {
+  ;($('chatview') as HTMLElement).classList.toggle('hidden', id !== 'chat')
+  ;($('agentview') as HTMLElement).classList.toggle('hidden', id !== 'agent')
+  ;($('tab-chat') as HTMLElement).classList.toggle('active', id === 'chat')
+  ;($('tab-agent') as HTMLElement).classList.toggle('active', id === 'agent')
+}
+$('tab-chat').addEventListener('click', () => showView('chat'))
+$('tab-agent').addEventListener('click', () => showView('agent'))
+
+// ── chat ──
+const chatLog = $('chatlog')
+const chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+let chatBusy = false
+
+const chatLine = (cls: string, text: string): HTMLDivElement => {
+  const div = document.createElement('div')
+  div.className = cls
+  div.textContent = text
+  chatLog.appendChild(div)
+  chatLog.scrollTop = chatLog.scrollHeight
+  return div
+}
+
+let streamTarget: HTMLDivElement | null = null
+let streamText = ''
+api.onChatDelta((d) => {
+  if (!streamTarget) return
+  streamText += d
+  streamTarget.textContent = streamText
+  chatLog.scrollTop = chatLog.scrollHeight
+})
+api.onChatStatus((line) => chatLine('chat-status', `⚙ ${line}`))
+
+const currentBrain = (): { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string } => {
+  const url = ($('c-url') as HTMLInputElement).value.trim()
+  if (url) {
+    return {
+      kind: 'openai',
+      url,
+      model: ($('c-model') as HTMLInputElement).value.trim() || 'default',
+      key: ($('c-key') as HTMLInputElement).value.trim() || undefined
+    }
+  }
+  return selected
+}
+
+const sendChat = (): void => {
+  if (chatBusy) return
+  const input = $('chat-input') as HTMLInputElement
+  const q = input.value.trim()
+  if (!q) return
+  input.value = ''
+  if (!chatLog.querySelector('.msg-user')) chatLog.innerHTML = ''
+  chatLine('msg-user', `> ${q}`)
+  chatHistory.push({ role: 'user', content: q })
+  streamTarget = chatLine('msg-ai', '')
+  streamText = ''
+  chatBusy = true
+  ;($('send') as HTMLElement).textContent = '···'
+  void api
+    .chatSend({
+      history: [...chatHistory],
+      brain: currentBrain(),
+      thinking: ($('think') as HTMLSelectElement).value,
+      web: ($('web') as HTMLInputElement).checked
+    })
+    .then((r) => {
+      chatBusy = false
+      ;($('send') as HTMLElement).textContent = 'SEND'
+      if (r.error) {
+        streamTarget!.textContent = `✗ ${r.error}`
+        return
+      }
+      if (!streamText && r.answer) streamTarget!.textContent = r.answer
+      if (r.sources.length) chatLine('chat-status', r.sources.map((s, i) => `[${i + 1}] ${s.title} — ${s.url}`).join('\n'))
+      chatHistory.push({ role: 'assistant', content: r.answer })
+      streamTarget = null
+    })
+}
+$('send').addEventListener('click', sendChat)
+$('chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendChat()
 })

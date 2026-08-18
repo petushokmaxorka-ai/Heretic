@@ -6,7 +6,10 @@ export const IPC = {
   SESSION_FINAL: 'session:final',
   BRAINS_SCAN: 'brains:scan',
   APPROVAL_REQUEST: 'approval:request',
-  APPROVAL_DECIDE: 'approval:decide'
+  APPROVAL_DECIDE: 'approval:decide',
+  CHAT_SEND: 'chat:send',
+  CHAT_DELTA: 'chat:delta',
+  CHAT_STATUS: 'chat:status'
 } as const
 
 export interface BrainConfig {
@@ -23,4 +26,15 @@ export interface SessionRequest {
   brain: BrainConfig
   advisor?: BrainConfig
   trust: TrustMode
+}
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface ChatRequestPayload {
+  history: ChatTurn[]
+  brain: BrainConfig
+  thinking: 'low' | 'mid' | 'high' | 'max'
+  web: boolean
 }

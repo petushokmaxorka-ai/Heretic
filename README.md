@@ -8,6 +8,12 @@ The face is a ledger, not a chat: every step the agent takes is a line with a ve
 
 ## Status
 
+Phase 0–4 shipped + CHAT PACK: flagship chat surface — ask anything, streaming
+answers (SSE), thinking levels low/mid/high/max (token budget + reasoning_effort
+hint + prompt directive), keyless web search (DuckDuckGo lite; SearXNG for
+Heretic-mode) with RAG-lite source injection; CLI `chat` subcommand (REPL +
+one-shot, /web /think commands); desktop CHAT|AGENT tabs.
+
 Phase 0–4 shipped: COUNCIL (advisors debate — synthesizer executes with the debate
 as context), VAULT memory (remember/recall, append-only JSONL, transparent
 ledger steps), SKULL-lite immune guard (destructive-pattern blacklist,
@@ -39,6 +45,10 @@ node out/src/cli.js "..." --brain echo --advisor echo --yes
 
 # deterministic offline brain (no runtime needed, CI-friendly)
 node out/src/cli.js "..." --brain echo
+
+# flagship chat: REPL with /web, /think low|mid|high|max, /exit
+node out/src/cli.js chat --brain echo
+node out/src/cli.js chat "one-shot question" --web --thinking high
 ```
 
 ## Safety laws
