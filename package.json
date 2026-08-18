@@ -1,0 +1,24 @@
+{
+  "name": "anathemetron",
+  "version": "0.1.0",
+  "description": "ANATHEMETRON — local-first agentic desktop engine. Small local brain + strong verification + cloud escalation.",
+  "type": "module",
+  "license": "MIT",
+  "main": "./out/src/cli.js",
+  "bin": {
+    "anathemetron": "./out/src/cli.js"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.json && node --test out/test/sandbox.test.js out/test/agent.test.js out/test/discovery.test.js",
+    "cli": "node out/cli.js"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.8",
+    "typescript": "^5.5.2"
+  }
+}
