@@ -9,12 +9,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { runAgent } from './engine/agent.js'
+import { runCouncil } from './engine/council.js'
 import { autoAllow, denyAll } from './engine/policy.js'
+import { skullGuardAll } from './engine/skull.js'
 import { EchoBrain } from './brains/echo.js'
 import { OpenAIBrain } from './brains/openai.js'
 import { discoverLocal } from './discovery.js'
 import { fsTools } from './tools/fs.js'
 import { shellTool } from './tools/shell.js'
+import { vaultTools } from './tools/vault.js'
 import { Sandbox } from './tools/sandbox.js'
 import type { ApprovalPolicy, Brain, Step } from './protocol/types.js'
 
@@ -42,6 +45,9 @@ function usage(): string {
     '  --yes                auto-approve mutating steps',
     '  --dry                deny all mutating steps (safe rehearsal)',
     '  --list-brains        scan localhost runtimes and exit',
+    '  --advisor <url|echo> council mode: advisor debates, brain executes',
+    '  --advisor-model <id> model id for the advisor brain',
+    '  --advisor-key <key>  api key for a cloud advisor',
     '',
     'Routing: prefix the task with @brain-id to pick a brain: "@kimi review this"'
   ].join('\n')
@@ -73,7 +79,7 @@ async function interactivePolicy(): Promise<ApprovalPolicy> {
 }
 
 async function main(): Promise<number> {
-  const valueFlags = ['brain', 'model', 'key', 'root', 'max-steps']
+  const valueFlags = ['brain', 'model', 'key', 'root', 'max-steps', 'advisor', 'advisor-model', 'advisor-key']
   const argv = process.argv.slice(2)
 
   const positionals: string[] = []
@@ -139,11 +145,32 @@ async function main(): Promise<number> {
   }
 
   const policy = has('dry') ? denyAll : has('yes') ? autoAllow : await interactivePolicy()
+  const tools = skullGuardAll([...fsTools, shellTool, ...vaultTools])
 
-  console.log(`${C.crimson}◆ HERETIC${C.off} ${C.dim}root=${root}${C.off}`)
+  console.log(`${C.crimson}◆ HERETIC${C.off} ${C.dim}root=${root} · skull: active${C.off}`)
+
+  const advisorUrl = flag('advisor')
+  if (advisorUrl) {
+    const advisor: Brain =
+      advisorUrl === 'echo'
+        ? new EchoBrain(['advisor: proceed carefully and keep it minimal'])
+        : new OpenAIBrain('advisor', advisorUrl, advisorUrl, flag('advisor-model') ?? 'default', flag('advisor-key'))
+    console.log(`${C.crimson}◆ COUNCIL${C.off} ${C.dim}advisor=${advisor.id}${C.off}`)
+    const councilled = await runCouncil(task, {
+      brain,
+      advisors: [{ brain: advisor, role: 'advisor' }],
+      tools,
+      sandbox: new Sandbox(root),
+      policy,
+      maxSteps: Number(flag('max-steps') ?? 12) || 12,
+      onStep: printStep
+    })
+    return councilled.ok ? (console.log(`\n${C.crimson}◆${C.off} ${councilled.final}`), 0) : (console.log(`\n${C.red}✗${C.off} no verified final answer`), 1)
+  }
+
   const result = await runAgent(task, {
     brain,
-    tools: [...fsTools, shellTool],
+    tools,
     sandbox: new Sandbox(root),
     policy,
     maxSteps: Number(flag('max-steps') ?? 12) || 12,

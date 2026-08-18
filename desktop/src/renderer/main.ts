@@ -10,7 +10,7 @@ interface StepView {
 }
 
 interface HereticApi {
-  runSession(task: string, brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }, trust: string): Promise<{ ok: boolean; error?: string }>
+  runSession(task: string, brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }, trust: string, advisor?: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }): Promise<{ ok: boolean; error?: string }>
   scanBrains(): Promise<{ name: string; baseUrl: string; models: string[] }[]>
   decideApproval(id: number, ok: boolean): Promise<void>
   onStep(cb: (s: StepView) => void): () => void
@@ -87,6 +87,11 @@ $('scan').addEventListener('click', () => {
   })()
 })
 
+const councilBox = $('council') as HTMLInputElement
+councilBox.addEventListener('change', () => {
+  ($('advisor-row') as HTMLElement).hidden = !councilBox.checked
+})
+
 $('ignite').addEventListener('click', () => {
   if (running) return
   const task = ($('task') as HTMLInputElement).value.trim()
@@ -103,11 +108,25 @@ $('ignite').addEventListener('click', () => {
   }
   $('brain-label').textContent = `brain: ${selected.kind === 'echo' ? 'echo (demo)' : selected.model ?? 'custom'}`
 
+  let advisor: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string } | undefined
+  if (councilBox.checked) {
+    const aUrl = ($('a-url') as HTMLInputElement).value.trim()
+    advisor =
+      !aUrl || aUrl === 'echo'
+        ? { kind: 'echo' }
+        : {
+            kind: 'openai',
+            url: aUrl,
+            model: ($('a-model') as HTMLInputElement).value.trim() || 'default',
+            key: ($('a-key') as HTMLInputElement).value.trim() || undefined
+          }
+  }
+
   running = true
-  $('ignite').textContent = 'RUNNING'
+  $('ignite').textContent = advisor ? 'COUNCIL' : 'RUNNING'
   ledger.innerHTML = ''
   line(`<div class="step dim">◆ session start · trust=${($('trust') as HTMLSelectElement).value}</div>`)
-  void api.runSession(task, selected, ($('trust') as HTMLSelectElement).value)
+  void api.runSession(task, selected, ($('trust') as HTMLSelectElement).value, advisor)
 })
 
 $('task').addEventListener('keydown', (e) => {

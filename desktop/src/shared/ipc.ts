@@ -17,3 +17,10 @@ export interface BrainConfig {
 }
 
 export type TrustMode = 'manual' | 'auto' | 'dry'
+
+export interface SessionRequest {
+  task: string
+  brain: BrainConfig
+  advisor?: BrainConfig
+  trust: TrustMode
+}

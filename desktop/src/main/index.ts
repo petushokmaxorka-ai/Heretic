@@ -9,6 +9,8 @@ import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runAgent } from '../../../src/engine/agent'
+import { runCouncil } from '../../../src/engine/council'
+import { skullGuardAll } from '../../../src/engine/skull'
 import { EchoBrain } from '../../../src/brains/echo'
 import { OpenAIBrain } from '../../../src/brains/openai'
 import { autoAllow, denyAll } from '../../../src/engine/policy'
@@ -16,6 +18,7 @@ import { discoverLocal } from '../../../src/discovery'
 import { fsTools } from '../../../src/tools/fs'
 import { shellTool } from '../../../src/tools/shell'
 import { Sandbox } from '../../../src/tools/sandbox'
+import { vaultTools } from '../../../src/tools/vault'
 import type { ApprovalPolicy, Brain } from '../../../src/protocol/types'
 import { createBrowserTool } from './browser-tool'
 import { initUpdater } from './updater'
@@ -108,9 +111,10 @@ app.whenReady().then(() => {
     pendingApprovals.delete(id)
   })
 
-  ipcMain.handle(IPC.SESSION_RUN, async (_e, { task, brain, trust, root }: {
+  ipcMain.handle(IPC.SESSION_RUN, async (_e, { task, brain, advisor, trust, root }: {
     task: string
     brain: BrainConfig
+    advisor?: BrainConfig
     trust: TrustMode
     root?: string
   }) => {
@@ -120,14 +124,17 @@ app.whenReady().then(() => {
     const sandboxRoot = root ?? join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)
     mkdirSync(sandboxRoot, { recursive: true })
     try {
-      const result = await runAgent(task, {
-        brain: buildBrain(brain),
-        tools: [...fsTools, shellTool, createBrowserTool(() => win)],
+      const tools = skullGuardAll([...fsTools, shellTool, ...vaultTools, createBrowserTool(() => win)])
+      const base = {
+        tools,
         sandbox: new Sandbox(sandboxRoot),
         policy: policyFor(trust),
         maxSteps: 12,
-        onStep: (step) => send(IPC.SESSION_STEP, step)
-      })
+        onStep: (step: import('../../../src/protocol/types').Step) => send(IPC.SESSION_STEP, step)
+      }
+      const result = advisor
+        ? await runCouncil(task, { brain: buildBrain(brain), advisors: [{ brain: buildBrain(advisor), role: 'advisor' }], ...base })
+        : await runAgent(task, { brain: buildBrain(brain), ...base })
       send(IPC.SESSION_FINAL, result)
       if (!win || win.isDestroyed() || !win.isVisible()) {
         new Notification({

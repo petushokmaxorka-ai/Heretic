@@ -8,6 +8,11 @@ The face is a ledger, not a chat: every step the agent takes is a line with a ve
 
 ## Status
 
+Phase 0–4 shipped: COUNCIL (advisors debate — synthesizer executes with the debate
+as context), VAULT memory (remember/recall, append-only JSONL, transparent
+ledger steps), SKULL-lite immune guard (destructive-pattern blacklist,
+mutation cap, append-only audit trail) over every tool.
+
 Phase 0–3 shipped: engine core + Electron shell (`desktop/`) with Step Ledger UI,
 trust modes, tray pulse, close-to-tray, agent browser pane (WebContentsView with
 screenshot verification), native notifications, electron-updater (GitHub Releases),
@@ -29,6 +34,9 @@ node out/src/cli.js "create notes/hello.txt with one line: hi" --yes
 # rehearse safely: all mutating steps denied
 node out/src/cli.js "..." --dry
 
+# council: advisor debates, brain executes
+node out/src/cli.js "..." --brain echo --advisor echo --yes
+
 # deterministic offline brain (no runtime needed, CI-friendly)
 node out/src/cli.js "..." --brain echo
 ```
@@ -40,6 +48,8 @@ node out/src/cli.js "..." --brain echo
 3. **Allowlist** — shell tool runs a fixed set of binaries, `spawn` without shell, hard timeout.
 4. **Approval gate** — mutating tools pass through an approval policy (`--yes` / `--dry` / interactive HITL).
 5. **Step ledger** — every action lands in the ledger with a verdict; failures roll back, the loop survives.
+6. **SKULL-lite** — every mutating call passes an immune guard (pattern blacklist, per-session mutation cap) and lands in `skull-audit.jsonl`.
+7. **Vault** — long-term memory is append-only and transparent: `memory.remember` / `memory.recall` are ordinary ledger steps.
 
 ## Tool protocol
 

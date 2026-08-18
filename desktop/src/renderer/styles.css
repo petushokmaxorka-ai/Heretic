@@ -104,3 +104,6 @@ footer {
 footer .glyph { color: var(--dim); }
 #task { flex: 1; }
 #ignite { font-weight: 700; }
+
+.council-toggle { color: var(--warn); font-size: 12px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
+.council-toggle input { accent-color: var(--warn); }

@@ -4,8 +4,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type BrainConfig, type TrustMode } from '../shared/ipc'
 
 const api = {
-  runSession: (task: string, brain: BrainConfig, trust: TrustMode): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke(IPC.SESSION_RUN, { task, brain, trust }),
+  runSession: (task: string, brain: BrainConfig, trust: TrustMode, advisor?: BrainConfig): Promise<{ ok: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.SESSION_RUN, { task, brain, advisor, trust }),
   scanBrains: (): Promise<{ name: string; baseUrl: string; models: string[] }[]> =>
     ipcRenderer.invoke(IPC.BRAINS_SCAN),
   decideApproval: (id: number, ok: boolean): Promise<void> =>

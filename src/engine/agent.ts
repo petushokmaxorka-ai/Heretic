@@ -30,6 +30,8 @@ export interface AgentOptions {
   policy: ApprovalPolicy
   maxSteps?: number
   onStep?: (step: Step) => void
+  /** ledger index offset — council prepends its own steps */
+  startAt?: number
 }
 
 export interface AgentResult {
@@ -57,7 +59,7 @@ function systemPrompt(tools: Tool[], root: string): string {
 export async function runAgent(task: string, opts: AgentOptions): Promise<AgentResult> {
   const maxSteps = opts.maxSteps ?? 12
   const steps: Step[] = []
-  let index = 0
+  let index = opts.startAt ?? 0
 
   const emit = (step: Step): void => {
     steps.push(step)
