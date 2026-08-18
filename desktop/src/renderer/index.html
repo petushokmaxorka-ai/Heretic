@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>HERETIC</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <span class="brand">◆ HERETIC</span>
+    <span id="brain-label" class="dim">brain: —</span>
+    <span class="spacer"></span>
+    <select id="trust" title="trust mode">
+      <option value="manual">manual</option>
+      <option value="auto">auto</option>
+      <option value="dry">dry</option>
+    </select>
+    <button id="scan" class="ghost">scan brains</button>
+  </header>
+
+  <section class="brains" id="brains" hidden>
+    <div class="dim small">local runtimes (guest protocol — we never spawn our own):</div>
+    <div id="brain-list"></div>
+    <div class="custom">
+      <input id="c-url" placeholder="custom base url (http://127.0.0.1:11436/)" />
+      <input id="c-model" placeholder="model id" />
+      <input id="c-key" placeholder="api key (cloud)" type="password" />
+    </div>
+  </section>
+
+  <main id="ledger">
+    <div class="dim small center" style="margin-top:40vh">the ledger is empty — give the organism a task</div>
+  </main>
+
+  <footer>
+    <span class="glyph">⚙</span>
+    <input id="task" placeholder='task… (@brain prefix routes)' autocomplete="off" />
+    <button id="ignite">IGNITE</button>
+  </footer>
+
+  <script type="module" src="main.ts"></script>
+</body>
+</html>

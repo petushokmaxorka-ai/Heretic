@@ -1,0 +1,36 @@
+{
+  "name": "heretic-desktop",
+  "version": "0.1.0",
+  "description": "HERETIC — desktop shell. Anathemetron lives inside.",
+  "main": "./out/main/index.js",
+  "author": { "name": "Heretic OS" },
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "build:unpack": "npm run build && electron-builder --dir"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.8",
+    "electron": "^43.4.0",
+    "electron-builder": "^24.9.1",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.5.2",
+    "vite": "^5.3.1"
+  },
+  "build": {
+    "productName": "Heretic",
+    "appId": "dev.heretic-os.heretic",
+    "asar": false,
+    "directories": { "output": "release" },
+    "files": ["out"],
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "category": "Development"
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    }
+  }
+}
