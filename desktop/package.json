@@ -1,9 +1,11 @@
 {
   "name": "heretic-desktop",
-  "version": "0.1.0",
-  "description": "HERETIC — desktop shell. Anathemetron lives inside.",
+  "version": "0.2.0",
+  "description": "HERETIC \u2014 desktop shell. Anathemetron lives inside.",
   "main": "./out/main/index.js",
-  "author": { "name": "Heretic OS" },
+  "author": {
+    "name": "Heretic OS"
+  },
   "license": "MIT",
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -23,14 +25,48 @@
     "productName": "Heretic",
     "appId": "dev.heretic-os.heretic",
     "asar": false,
-    "directories": { "output": "release" },
-    "files": ["out"],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out"
+    ],
     "linux": {
-      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "category": "Development"
     },
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }]
-    }
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "petushokmaxorka-ai",
+        "repo": "Heretic"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
   }
 }

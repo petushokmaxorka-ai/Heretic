@@ -8,8 +8,10 @@ The face is a ledger, not a chat: every step the agent takes is a line with a ve
 
 ## Status
 
-Phase 0–1 (engine core): agent loop, sandboxed tools, approval gate, brain connector,
-local runtime discovery. CLI only — the desktop shell comes in Phase 2+ (see DESIGN.md).
+Phase 0–3 shipped: engine core + Electron shell (`desktop/`) with Step Ledger UI,
+trust modes, tray pulse, close-to-tray, agent browser pane (WebContentsView with
+screenshot verification), native notifications, electron-updater (GitHub Releases),
+release pipeline (tag v* → AppImage + tar.gz + NSIS).
 
 ## Quick start
 
@@ -60,6 +62,7 @@ CLI / desktop shell (zero brain)
    tools: fs.read / fs.write / fs.list / shell   (sandboxed)
         │
    brains: llama-swap · ollama · lmstudio · cloud APIs (BYO key)
+   eyes:   browser.open — pane + title + excerpt + screenshot (url-guard: http/https only)
 ```
 
 *«Anathemetron — the organism — lives inside.

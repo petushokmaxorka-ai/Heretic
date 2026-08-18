@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Engine tests
+        run: npm ci && npm test
+      - name: Desktop build
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          npx electron-builder --linux AppImage tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: heretic-linux
+          path: |
+            desktop/release/*.AppImage
+            desktop/release/*.tar.gz
+          if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Desktop build
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          npx electron-builder --win nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: heretic-windows
+          path: desktop/release/*.exe
+          if-no-files-found: error
+
+  publish:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/heretic-linux/*
+            dist/heretic-windows/*
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

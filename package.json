@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test out/test/sandbox.test.js out/test/agent.test.js out/test/discovery.test.js",
+    "test": "tsc -p tsconfig.json && node --test out/test/sandbox.test.js out/test/agent.test.js out/test/discovery.test.js out/test/url-guard.test.js",
     "cli": "node out/cli.js"
   },
   "engines": {

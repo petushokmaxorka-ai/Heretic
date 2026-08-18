@@ -4,7 +4,7 @@
 // Engine (Anathemetron) runs here; renderer only sees IPC events.
 // Close-to-tray: the window can die, the organism keeps ticking.
 
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification } from 'electron'
 import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,6 +17,8 @@ import { fsTools } from '../../../src/tools/fs'
 import { shellTool } from '../../../src/tools/shell'
 import { Sandbox } from '../../../src/tools/sandbox'
 import type { ApprovalPolicy, Brain } from '../../../src/protocol/types'
+import { createBrowserTool } from './browser-tool'
+import { initUpdater } from './updater'
 import { IPC, type BrainConfig, type TrustMode } from '../shared/ipc'
 
 let win: BrowserWindow | null = null
@@ -97,6 +99,7 @@ function policyFor(mode: TrustMode): ApprovalPolicy {
 app.whenReady().then(() => {
   createWindow()
   createTray()
+  initUpdater((line) => console.log(line))
 
   ipcMain.handle(IPC.BRAINS_SCAN, async () => discoverLocal())
 
@@ -119,13 +122,19 @@ app.whenReady().then(() => {
     try {
       const result = await runAgent(task, {
         brain: buildBrain(brain),
-        tools: [...fsTools, shellTool],
+        tools: [...fsTools, shellTool, createBrowserTool(() => win)],
         sandbox: new Sandbox(sandboxRoot),
         policy: policyFor(trust),
         maxSteps: 12,
         onStep: (step) => send(IPC.SESSION_STEP, step)
       })
       send(IPC.SESSION_FINAL, result)
+      if (!win || win.isDestroyed() || !win.isVisible()) {
+        new Notification({
+          title: result.ok ? '◆ HERETIC — session complete' : '✗ HERETIC — session failed',
+          body: result.ok ? result.final.slice(0, 200) : 'open the ledger for details'
+        }).show()
+      }
       return { ok: true }
     } catch (e) {
       send(IPC.SESSION_FINAL, { ok: false, final: String((e as Error).message), steps: [] })
