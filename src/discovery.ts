@@ -31,3 +31,18 @@ export async function discoverLocal(timeoutMs = 1500): Promise<RuntimeHit[]> {
   const hits = await Promise.all(KNOWN_RUNTIMES.map((r) => probeUrl(r.name, r.baseUrl, timeoutMs)))
   return hits.filter((h): h is RuntimeHit => h !== null)
 }
+
+// SearXNG autodetect (Heretic-mode: the noosphere engine behind :8888/:8080).
+// Returns the first live JSON-capable base, null otherwise.
+export async function discoverSearxng(timeoutMs = 1200): Promise<string | null> {
+  const candidates = ['http://127.0.0.1:8888/', 'http://127.0.0.1:8080/']
+  for (const base of candidates) {
+    try {
+      const res = await fetch(`${base}search?q=test&format=json`, { signal: AbortSignal.timeout(timeoutMs) })
+      if (res.ok) return base
+    } catch {
+      // try next
+    }
+  }
+  return null
+}

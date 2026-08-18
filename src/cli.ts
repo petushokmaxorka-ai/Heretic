@@ -20,6 +20,8 @@ import { shellTool } from './tools/shell.js'
 import { vaultTools } from './tools/vault.js'
 import { Sandbox } from './tools/sandbox.js'
 import { runChat } from './engine/chat.js'
+import { observe } from './engine/observe.js'
+import { webSearchTool } from './tools/search.js'
 import { isThinkingLevel, type ThinkingLevel } from './thinking.js'
 import type { ApprovalPolicy, Brain, Step } from './protocol/types.js'
 
@@ -154,36 +156,41 @@ async function main(): Promise<number> {
     brain = new OpenAIBrain('local', baseUrl, baseUrl, model ?? 'default', flag('key'))
   }
 
+  const policy = has('dry') ? denyAll : has('yes') || chatMode ? autoAllow : await interactivePolicy()
+  const tools = skullGuardAll([...fsTools, shellTool, ...vaultTools, webSearchTool])
+
   if (chatMode) {
     let web = has('web')
+    let auto = true
     let thinking: ThinkingLevel = isThinkingLevel(flag('thinking') ?? '') ? (flag('thinking') as ThinkingLevel) : 'mid'
     const rl = createInterface({ input: process.stdin, output: process.stdout })
     const history: { role: 'user' | 'assistant'; content: string }[] = []
 
-    const ask = async (question: string): Promise<void> => {
+    const ask = async (question: string, webEff = web, thinkingEff = thinking): Promise<void> => {
       history.push({ role: 'user', content: question })
       process.stdout.write(`${C.teal}◆${C.off} `)
       const { answer } = await runChat({
         history,
         brain,
-        thinking,
-        web,
+        thinking: thinkingEff,
+        web: webEff,
         onDelta: (d) => process.stdout.write(d),
         onStatus: (l) => console.log(`${C.dim}⚙ ${l}${C.off}`)
       })
       history.push({ role: 'assistant', content: answer })
-      console.log(`\n${C.dim}[${brain.id} · ${thinking}${web ? ' · web' : ''}]${C.off}\n`)
+      console.log(`\n${C.dim}[${brain.id} · ${thinkingEff}${webEff ? ' · web' : ''}]${C.off}\n`)
     }
 
     if (task) {
       await ask(task)
       return 0
     }
-    console.log(`${C.crimson}◆ HERETIC CHAT${C.off} ${C.dim}/web /think low|mid|high|max /exit${C.off}`)
+    console.log(`${C.crimson}◆ HERETIC CHAT${C.off} ${C.dim}/web /think low|mid|high|max /auto /exit — observe: on${C.off}`)
     for (;;) {
       const q = (await rl.question(`${C.crimson}>${C.off} `)).trim()
       if (!q) continue
       if (q === '/exit') return 0
+      if (q === '/auto') { auto = !auto; console.log(`${C.dim}observe: ${auto ? 'on' : 'off'}${C.off}`); continue }
       if (q === '/web') { web = !web; console.log(`${C.dim}web: ${web ? 'on' : 'off'}${C.off}`); continue }
       if (q.startsWith('/think ')) {
         const lvl = q.slice(7).trim()
@@ -191,12 +198,25 @@ async function main(): Promise<number> {
         else console.log(`${C.red}✗${C.off} low | mid | high | max`)
         continue
       }
-      try { await ask(q) } catch (e) { console.log(`${C.red}✗${C.off} ${(e as Error).message}`) }
+      try {
+        if (auto) {
+          const v = observe(q)
+          console.log(`${C.dim}⚙ observe: ${v.mode}${v.web ? ' · web' : ''} · ${v.thinking} (${v.reasons.join(', ')})${C.off}`)
+          if (v.mode === 'agent') {
+            history.push({ role: 'user', content: q })
+            const r = await runAgent(q, { brain, tools, sandbox: new Sandbox(root), policy: autoAllow, maxSteps: 8 })
+            const final = r.final || '(no final answer)'
+            history.push({ role: 'assistant', content: final })
+            console.log(`${C.teal}◆${C.off} ${final}\n${C.dim}[${brain.id} · agent]${C.off}\n`)
+            continue
+          }
+          await ask(q, web || v.web, isThinkingLevel(v.thinking) ? v.thinking : thinking)
+          continue
+        }
+        await ask(q)
+      } catch (e) { console.log(`${C.red}✗${C.off} ${(e as Error).message}`) }
     }
   }
-
-  const policy = has('dry') ? denyAll : has('yes') ? autoAllow : await interactivePolicy()
-  const tools = skullGuardAll([...fsTools, shellTool, ...vaultTools])
 
   console.log(`${C.crimson}◆ HERETIC${C.off} ${C.dim}root=${root} · skull: active${C.off}`)
 
