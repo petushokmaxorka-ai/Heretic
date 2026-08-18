@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// ANATHEMETRON — Agent loop (the engine core)
+// ANATHEMETRON — Agent loop (the engine core of HERETIC)
 // ═══════════════════════════════════════════════════════════
 // Weak actor + strong critic: every tool call passes the
 // verification ladder (path-safety → allowlist → approval),
@@ -41,7 +41,7 @@ export interface AgentResult {
 function systemPrompt(tools: Tool[], root: string): string {
   const list = tools.map((t) => `- ${t.name}: ${t.description}`).join('\n')
   return [
-    'You are ANATHEMETRON, a supervised agent. You act ONLY through tools.',
+    'You are ANATHEMETRON, the resident organism of HERETIC — a supervised agent. You act ONLY through tools.',
     'Available tools:',
     list,
     '',

@@ -1,7 +1,8 @@
-# ANATHEMETRON
+# HERETIC
 
 Local-first agentic engine: **small local brain + strong verification + cloud escalation.**
 
+Anathemetron — the organism — lives inside.
 The face is a ledger, not a chat: every step the agent takes is a line with a verdict
 (`⚙` step · `✓` verified · `⚠` approval · `✗` rejected/rolled back).
 
@@ -61,4 +62,5 @@ CLI / desktop shell (zero brain)
    brains: llama-swap · ollama · lmstudio · cloud APIs (BYO key)
 ```
 
-*«The face is a ledger, not a chat.»*
+*«Anathemetron — the organism — lives inside.
+The face is a ledger, not a chat.»*

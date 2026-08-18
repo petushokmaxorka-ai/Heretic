@@ -1,12 +1,12 @@
 {
-  "name": "anathemetron",
+  "name": "heretic",
   "version": "0.1.0",
-  "description": "ANATHEMETRON — local-first agentic desktop engine. Small local brain + strong verification + cloud escalation.",
+  "description": "HERETIC \u2014 local-first agentic desktop engine. Small local brain + strong verification + cloud escalation. Anathemetron lives inside.",
   "type": "module",
   "license": "MIT",
   "main": "./out/src/cli.js",
   "bin": {
-    "anathemetron": "./out/src/cli.js"
+    "heretic": "./out/src/cli.js"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

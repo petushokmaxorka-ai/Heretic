@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ═══════════════════════════════════════════════════════════
-// ANATHEMETRON — CLI (the first face of the product)
+// HERETIC — CLI (the first face of the product)
 // Ledger in the terminal: crimson session, teal verdicts, gold warnings.
 // ═══════════════════════════════════════════════════════════
 
@@ -29,7 +29,7 @@ const C = {
 
 function usage(): string {
   return [
-    'anathemetron — local-first agentic engine',
+    'heretic — local-first agentic engine',
     '',
     '  node out/src/cli.js "task text" [options]',
     '',
@@ -101,7 +101,7 @@ async function main(): Promise<number> {
     return task ? 1 : 0
   }
 
-  const root = flag('root') ?? join(tmpdir(), `anathemetron-sandbox-${process.getuid?.() ?? 0}`)
+  const root = flag('root') ?? join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)
   mkdirSync(root, { recursive: true })
 
   if (has('list-brains')) {
@@ -140,7 +140,7 @@ async function main(): Promise<number> {
 
   const policy = has('dry') ? denyAll : has('yes') ? autoAllow : await interactivePolicy()
 
-  console.log(`${C.crimson}◆ ANATHEMETRON${C.off} ${C.dim}root=${root}${C.off}`)
+  console.log(`${C.crimson}◆ HERETIC${C.off} ${C.dim}root=${root}${C.off}`)
   const result = await runAgent(task, {
     brain,
     tools: [...fsTools, shellTool],

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// ANATHEMETRON — Protocol types (single source of truth)
+// HERETIC — Protocol types (ANATHEMETRON engine) (single source of truth)
 // ═══════════════════════════════════════════════════════════
 
 export type Role = 'system' | 'user' | 'assistant' | 'tool'

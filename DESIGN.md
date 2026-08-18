@@ -1,5 +1,6 @@
-# ANATHEMETRON — Design Doctrine
+# HERETIC — Design Doctrine
 
+> Heretic is the product. Anathemetron is the organism that lives inside it.
 > The face is a ledger, not a chat. Every step the agent takes is a line with a verdict.
 
 ## Lineage
