@@ -3,7 +3,7 @@
 // of its own workspace.
 
 import { readdir, readFile, stat } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import type { Tool, ToolContext, ToolResult } from '../protocol/types.js'
 import { Sandbox } from './sandbox.js'
 
@@ -44,7 +44,7 @@ export const codeSearch: Tool = {
           filesSeen++
           const text = await readFile(full, 'utf-8').catch(() => null)
           if (text === null || text.includes('\u0000')) continue // binary
-          const rel = relative(sandbox.root, full)
+          const rel = relative(sandbox.root, full).split(sep).join('/')
           for (const [i, line] of text.split('\n').entries()) {
             if (matches.length >= MAX_MATCHES) break
             if (re.test(line)) {
