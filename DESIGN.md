@@ -8,7 +8,12 @@
 - Reference: Google Antigravity — light, clean surfaces, rounded geometry (14-16px cards, pill controls), soft shadows, sans typography (Inter), sidebar navigation, message bubbles, status pills
 - Identity kept: crimson accent (sparingly), verdict colors (ok/warn/bad + soft tints), ◆ glyphs, "ANATHEMETRON" persona
 - Mono only for step details and urls — the chrome speaks sans
-- The old void-terminal look survives as the "dark" theme (toggle in the sidebar, persisted)
+- NEW DEFAULT (2026-08-18, Principal's order): "Mechanicus" — the dashboard lineage skin
+  (gold #c8a84b + crimson on void-black, faint scanlines, gold avatar/send button) over the
+  Antigravity bones. Antigravity = UX patterns (bubbles, composer, chips, cards);
+  Mechanicus = оформление. Theme cycle: mechanicus → light → dark.
+- DIALOGUS transplant: markdown (zero-dep CSP-safe renderer), sessions
+  (localStorage, restore/switch/new), streaming — its soul on our engine, not its file.
 
 ## Core visual idea — Step Ledger
 

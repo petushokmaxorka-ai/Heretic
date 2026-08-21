@@ -45,13 +45,15 @@ const scrollEnd = (el: HTMLElement): void => {
 }
 
 // ── theme ────────────────────────────────────────────────
+const THEMES = ['mechanicus', 'light', 'dark'] as const
 const applyTheme = (t: string): void => {
   document.documentElement.dataset.theme = t
   localStorage.setItem('heretic-theme', t)
 }
-applyTheme(localStorage.getItem('heretic-theme') ?? 'light')
+applyTheme(localStorage.getItem('heretic-theme') ?? 'mechanicus')
 $('theme').addEventListener('click', () => {
-  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark')
+  const cur = document.documentElement.dataset.theme ?? 'mechanicus'
+  applyTheme(THEMES[(THEMES.indexOf(cur as (typeof THEMES)[number]) + 1) % THEMES.length] ?? 'mechanicus')
 })
 
 // ── navigation ───────────────────────────────────────────
@@ -190,6 +192,35 @@ $('task').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') $('ignite').click()
 })
 
+
+// ── markdown (DIALOGUS lineage, zero-dep, CSP-safe) ──────
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function mdToHtml(src: string): string {
+  const pres: string[] = []
+  let s = escapeHtml(src)
+  s = s.replace(/```[\w-]*\n?([\s\S]*?)```/g, (_m, code: string) => {
+    pres.push(`<pre><code>${String(code).replace(/\n$/, '')}</code></pre>`)
+    return `\u0000PRE${pres.length - 1}\u0000`
+  })
+  s = s
+    .replace(/^### (.*)$/gm, '<h4>$1</h4>')
+    .replace(/^## (.*)$/gm, '<h3>$1</h3>')
+    .replace(/^# (.*)$/gm, '<h3>$1</h3>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/^[-*] (.*)$/gm, '<li>$1</li>')
+  s = s
+    .split(/\n\n+/)
+    .map((block) => (block.startsWith('<h') || block.startsWith('<li') || block.startsWith('<pre') || block.includes('\u0000PRE') ? block : `<p>${block.replace(/\n/g, '<br>')}</p>`))
+    .join('\n')
+  return s.replace(/\u0000PRE(\d+)\u0000/g, (_m, i: string) => pres[Number(i)] ?? '')
+}
+
 // ── chat (AUTO surface) ──────────────────────────────────
 const chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
 let chatBusy = false
@@ -287,6 +318,7 @@ const sendChat = (): void => {
         streamTarget!.textContent =
           r.kind === 'agent' ? `${r.ok ? '⚙ session complete' : '✗ no verified final answer'}\n\n${r.answer}` : r.answer
       }
+      if (r.answer) streamTarget!.innerHTML = mdToHtml(r.answer) || streamTarget!.innerHTML
       if (r.sources.length) {
         const box = document.createElement('div')
         box.className = 'sources'
@@ -296,9 +328,75 @@ const sendChat = (): void => {
         chatNode(box)
       }
       chatHistory.push({ role: 'assistant', content: r.answer })
+      persistCurrentSession()
       streamTarget = null
     })
 }
+
+// ── sessions ─────────────────────────────────────────────
+interface StoredSession { id: string; name: string; updated: number; history: { role: 'user' | 'assistant'; content: string }[] }
+
+const loadSessions = (): StoredSession[] => {
+  try {
+    return JSON.parse(localStorage.getItem('heretic-sessions') ?? '[]') as StoredSession[]
+  } catch {
+    return []
+  }
+}
+const saveSessions = (all: StoredSession[]): void => localStorage.setItem('heretic-sessions', JSON.stringify(all.slice(-20)))
+
+let currentSessionId: string | null = null
+
+const renderSessionSelect = (): void => {
+  const sel = $('session') as HTMLSelectElement
+  const all = loadSessions()
+  sel.innerHTML =
+    '<option value="">sessions</option>' +
+    [...all].reverse().map((s) => `<option value="${s.id}" ${s.id === currentSessionId ? 'selected' : ''}>${s.name}</option>`).join('')
+}
+
+const persistCurrentSession = (): void => {
+  if (!chatHistory.length) return
+  const all = loadSessions()
+  const id = currentSessionId ?? `s-${Date.now()}`
+  currentSessionId = id
+  const name = (chatHistory.find((m) => m.role === 'user')?.content ?? 'session').slice(0, 28)
+  const existing = all.findIndex((s) => s.id === id)
+  const entry: StoredSession = { id, name, updated: Date.now(), history: [...chatHistory] }
+  if (existing >= 0) all[existing] = entry
+  else all.push(entry)
+  saveSessions(all)
+  renderSessionSelect()
+}
+
+const restoreSession = (id: string): void => {
+  const s = loadSessions().find((x) => x.id === id)
+  if (!s) return
+  currentSessionId = id
+  chatHistory.length = 0
+  chatLog.innerHTML = ''
+  for (const m of s.history) {
+    if (m.role === 'user') userBubble(m.content)
+    else {
+      const body = aiMessage()
+      body.innerHTML = mdToHtml(m.content)
+    }
+  }
+  scrollEnd(chatLog)
+}
+
+$('session').addEventListener('change', () => {
+  const id = ($('session') as HTMLSelectElement).value
+  if (id) restoreSession(id)
+})
+$('new-chat').addEventListener('click', () => {
+  currentSessionId = null
+  chatHistory.length = 0
+  chatLog.innerHTML = '<div class="empty"><div class="empty-mark">◆</div><div class="empty-title">Новая сессия</div><div class="empty-sub">Observe сам выберет: чат или агент</div></div>'
+  renderSessionSelect()
+})
+renderSessionSelect()
+
 $('send').addEventListener('click', sendChat)
 $('chat-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') sendChat()

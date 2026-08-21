@@ -323,3 +323,54 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; border: 3px solid var(--bg); }
 ::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+/* ── MECHANICUS theme (dashboard lineage: gold + crimson on void) ── */
+[data-theme='mechanicus'] {
+  --bg: #070607;
+  --surface: #100e0f;
+  --surface-2: #191617;
+  --border: #2b2526;
+  --text: #e8e0cf;
+  --dim: #9a8f7a;
+  --accent: #d4353f;
+  --accent-soft: #2a1114;
+  --ok: #46b5a5;
+  --ok-soft: #12201d;
+  --warn: #c8a84b;
+  --warn-soft: #241d0c;
+  --bad: #e0564f;
+  --bad-soft: #2a1010;
+  --gold: #c8a84b;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+[data-theme='mechanicus'] .brand { color: var(--gold); letter-spacing: 1px; }
+[data-theme='mechanicus'] .avatar { background: linear-gradient(135deg, #c8a84b, #7a5c1c); color: #0b0a08; }
+[data-theme='mechanicus'] .sendbtn { background: var(--gold); color: #0b0a08; }
+[data-theme='mechanicus'] .chip.toggle:has(input:checked) { border-color: var(--gold); background: var(--warn-soft); }
+[data-theme='mechanicus'] .nav.active { background: var(--accent-soft); color: var(--gold); }
+[data-theme='mechanicus'] .final-card { border-left-color: var(--gold); }
+[data-theme='mechanicus'] .msg-user { background: #241a1c; }
+[data-theme='mechanicus'] body::after {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 999;
+  background: repeating-linear-gradient(0deg, rgba(200, 168, 75, 0.028) 0 1px, transparent 1px 3px);
+}
+
+/* markdown in messages */
+.msg-content h3, .msg-content h4 { margin: 10px 0 6px; }
+.msg-content h3 { font-size: 15px; }
+.msg-content h4 { font-size: 14px; color: var(--dim); }
+.msg-content pre {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 12px; margin: 8px 0;
+  overflow-x: auto; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px;
+}
+.msg-content code {
+  background: var(--surface-2); border-radius: 5px; padding: 1px 5px;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px;
+}
+.msg-content pre code { background: transparent; padding: 0; }
+.msg-content a { color: var(--ok); }
+.msg-content li { margin-left: 18px; list-style: "◆  "; }
+.msg-content p { margin: 6px 0; }
