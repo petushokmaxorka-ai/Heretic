@@ -25,6 +25,8 @@ import { webSearchTool } from './tools/search.js'
 import { codeSearch } from './tools/code.js'
 import { fetchTool } from './tools/fetch.js'
 import { planTools } from './tools/plan.js'
+import { llamaStatusTool, getResidents, pickResident } from './tools/llama.js'
+import { memoriaQuery, servicesHealth } from './tools/organs.js'
 import { isThinkingLevel, type ThinkingLevel } from './thinking.js'
 import type { ApprovalPolicy, Brain, Step } from './protocol/types.js'
 
@@ -153,14 +155,35 @@ async function main(): Promise<number> {
         return 1
       }
       baseUrl = found.baseUrl
-      model = model ?? found.models[0] ?? 'default'
-      console.log(`${C.teal}✓${C.off} brain: ${found.name} ${C.dim}${model ?? ''}${C.off}`)
+      if (!model) {
+        const residents = await getResidents(baseUrl)
+        const pick = pickResident(found.models, residents)
+        model = pick.model
+        const mark = pick.resident === true ? '◉ resident' : '? residency unknown'
+        console.log(`${C.teal}✓${C.off} brain: ${found.name} ${C.dim}${model} · ${mark}${C.off}`)
+        if (pick.resident !== true) {
+          console.log(`${C.gold}⚠${C.off} ${C.dim}resident unknown — a non-resident request will swap the GPU${C.off}`)
+        }
+      } else {
+        console.log(`${C.teal}✓${C.off} brain: ${found.name} ${C.dim}${model}${C.off}`)
+      }
     }
     brain = new OpenAIBrain('local', baseUrl, baseUrl, model ?? 'default', flag('key'))
   }
 
   const policy = has('dry') ? denyAll : has('yes') || chatMode ? autoAllow : await interactivePolicy()
-  const tools = skullGuardAll([...fsTools, shellTool, ...vaultTools, webSearchTool, codeSearch, fetchTool, ...planTools])
+  const tools = skullGuardAll([
+  ...fsTools,
+  shellTool,
+  ...vaultTools,
+  webSearchTool,
+  codeSearch,
+  fetchTool,
+  ...planTools,
+  llamaStatusTool,
+  memoriaQuery,
+  servicesHealth
+])
 
   if (chatMode) {
     let web = has('web')

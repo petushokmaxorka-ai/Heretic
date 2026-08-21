@@ -32,7 +32,7 @@ interface StopApi {
 
 interface HereticApi extends ChatApi, StopApi {
   runSession(task: string, brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }, trust: string, advisor?: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }): Promise<{ ok: boolean; error?: string }>
-  scanBrains(): Promise<{ name: string; baseUrl: string; models: string[] }[]>
+  scanBrains(): Promise<{ name: string; baseUrl: string; models: string[]; residents?: string[] }[]>
   decideApproval(id: number, ok: boolean): Promise<void>
   onStep(cb: (s: StepView) => void): () => void
   onFinal(cb: (r: { ok: boolean; final: string }) => void): () => void
@@ -168,16 +168,32 @@ $('scan').addEventListener('click', () => {
     for (const h of hits) {
       const row = document.createElement('div')
       row.className = 'hit'
-      row.innerHTML = `◉ ${h.name}<span class="url">${h.baseUrl}</span>`
+      const res = h.residents?.length ? h.residents.length : 0
+      row.innerHTML = `${res ? '◉' : '○'} ${h.name}<span class="url">${h.baseUrl}${res ? ` · ${res} resident(s)` : ''}</span>`
       row.addEventListener('click', () => {
-        selected = { kind: 'openai', url: h.baseUrl, model: h.models[0] ?? 'default' }
-        ;($('brain-label') as HTMLElement).textContent = `${h.name} · ${selected.model ?? ''}`
+        const chosen = pickResidentFor(h).model
+        const isResident = h.residents?.includes(chosen) ?? false
+        if (h.residents && h.residents.length && !isResident) {
+          const swap = window.confirm(
+            `⚠ "${chosen}" не резидент — запрос выгрузит текущего резидента GPU (swap).\nВыбрать всё равно?`
+          )
+          if (!swap) return
+        }
+        selected = { kind: 'openai', url: h.baseUrl, model: chosen }
+        ;($('brain-label') as HTMLElement).textContent = `${h.name} · ${selected.model ?? ''}${h.residents?.includes(selected.model ?? '') ? ' ◉' : ''}`
         ;($('c-url') as HTMLInputElement).value = h.baseUrl
       })
       list.appendChild(row)
     }
   })()
 })
+
+const pickResidentFor = (h: { models: string[]; residents?: string[] }): { model: string } => {
+  const models = h.models ?? []
+  const residents = h.residents ?? []
+  const hit = models.find((m) => residents.includes(m))
+  return { model: hit ?? models[0] ?? 'default' }
+}
 
 const councilBox = $('council') as HTMLInputElement
 councilBox.addEventListener('change', () => {

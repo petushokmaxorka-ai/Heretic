@@ -30,6 +30,8 @@ import { webSearchTool } from '../../../src/tools/search'
 import { codeSearch } from '../../../src/tools/code'
 import { fetchTool } from '../../../src/tools/fetch'
 import { planTools } from '../../../src/tools/plan'
+import { llamaStatusTool, getResidents, pickResident } from '../../../src/tools/llama'
+import { memoriaQuery, servicesHealth } from '../../../src/tools/organs'
 import { discoverSearxng } from '../../../src/discovery'
 
 let win: BrowserWindow | null = null
@@ -38,7 +40,19 @@ let sessionAbort: AbortController | null = null
 let chatAbort: AbortController | null = null
 
 function buildTools(): import('../../../src/protocol/types').Tool[] {
-  return skullGuardAll([...fsTools, shellTool, ...vaultTools, webSearchTool, codeSearch, fetchTool, ...planTools, createBrowserTool(() => win)])
+  return skullGuardAll([
+    ...fsTools,
+    shellTool,
+    ...vaultTools,
+    webSearchTool,
+    codeSearch,
+    fetchTool,
+    ...planTools,
+    llamaStatusTool,
+    memoriaQuery,
+    servicesHealth,
+    createBrowserTool(() => win)
+  ])
 }
 
 async function getSearxng(): Promise<string | null> {
@@ -133,7 +147,12 @@ app.whenReady().then(() => {
   createTray()
   initUpdater((line) => console.log(line))
 
-  ipcMain.handle(IPC.BRAINS_SCAN, async () => discoverLocal())
+  ipcMain.handle(IPC.BRAINS_SCAN, async () => {
+    const hits = await discoverLocal()
+    return Promise.all(
+      hits.map(async (h) => ({ ...h, residents: [...(await getResidents(h.baseUrl)) ?? []] }))
+    )
+  })
 
   ipcMain.handle(IPC.APPROVAL_DECIDE, (_e, { id, ok }: { id: number; ok: boolean }) => {
     pendingApprovals.get(id)?.(ok)

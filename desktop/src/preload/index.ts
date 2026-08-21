@@ -6,7 +6,7 @@ import { IPC, type BrainConfig, type TrustMode, type ChatRequestPayload, type Au
 const api = {
   runSession: (task: string, brain: BrainConfig, trust: TrustMode, advisor?: BrainConfig): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.SESSION_RUN, { task, brain, advisor, trust }),
-  scanBrains: (): Promise<{ name: string; baseUrl: string; models: string[] }[]> =>
+  scanBrains: (): Promise<{ name: string; baseUrl: string; models: string[]; residents: string[] }[]> =>
     ipcRenderer.invoke(IPC.BRAINS_SCAN),
   autoSend: (payload: AutoRequestPayload): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.AUTO_SEND, payload),
