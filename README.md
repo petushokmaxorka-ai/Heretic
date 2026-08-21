@@ -1,10 +1,42 @@
-# HERETIC
+# ◆ HERETIC
 
-Local-first agentic engine: **small local brain + strong verification + cloud escalation.**
+**The flagship AI desktop that runs on YOUR brains.** Local models by default, cloud by key — chat, delegate, verify.
 
-Anathemetron — the organism — lives inside.
-The face is a ledger, not a chat: every step the agent takes is a line with a verdict
-(`⚙` step · `✓` verified · `⚠` approval · `✗` rejected/rolled back).
+> Heretic is the product. Anathemetron is the organism that lives inside.
+
+## Why another AI app
+
+| Everyone else | Heretic |
+|---|---|
+| Cloud-only brain, your data leaves | **Local-first**: llama-swap / Ollama / LM Studio autodetected, offline forever |
+| Chat OR agent, pick a tab | **Observe**: one input — the intent router decides chat/agent, web, thinking depth (verdicts shown, never silent) |
+| Trust the model | **Verified agency**: every step lands in a ledger — path-safety → allowlist → diff review → approval; SKULL immune guard + audit trail |
+| One model per session | **Council**: advisors debate, the local brain executes with the debate as context |
+| Memory = chat history | **Vault**: append-only long-term memory, every recall is a visible ledger step |
+| Generic | **Heretic-mode organs**: `llama.status` (◉ residents, swap-safe GET-only), `services.health`, semantic memory — your machine's organs as agent tools |
+
+## Quick start
+
+```bash
+git clone https://github.com/petushokmaxorka-ai/Heretic && cd Heretic
+npm install && npm test          # engine: 70+ hermetic tests, no GPU needed
+cd desktop && npm install && npm run dev
+```
+
+Releases: AppImage + tar.gz (Linux), NSIS Setup (Windows) — auto-update built in.
+
+## Safety laws
+
+1. **Guest protocol** — never spawns a model server if one exists; swaps are impossible from status code paths (GET-only, test-enforced)
+2. **Sandbox** — paths resolve inside the root; escapes rejected and recorded
+3. **Diff before write** — `edits`/`manual` trust modes show exactly what will change
+4. **SKULL-lite** — destructive patterns blocked, per-session mutation cap, append-only audit
+5. **Resident guard** — non-resident models warn before any GPU swap
+
+## Faces
+
+- **CLI** — `chat` REPL (observe auto-routing, `/web`, `/think low|mid|high|max`), one-shot agent, council
+- **Desktop** — Mechanicus skin over modern bones: bubbles, ledger cards, approvals, tray pulse, STOP, streaming
 
 ## Status
 

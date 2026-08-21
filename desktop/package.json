@@ -24,7 +24,7 @@
   "build": {
     "productName": "Heretic",
     "appId": "dev.heretic-os.heretic",
-    "asar": false,
+    "asar": true,
     "directories": {
       "output": "release"
     },
@@ -46,7 +46,8 @@
           ]
         }
       ],
-      "category": "Development"
+      "category": "Development",
+      "icon": "icons/256.png"
     },
     "win": {
       "target": [
@@ -56,7 +57,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "icon": "icons/256.png"
     },
     "publish": [
       {
@@ -64,7 +66,25 @@
         "owner": "petushokmaxorka-ai",
         "repo": "Heretic"
       }
-    ]
+    ],
+    "extraResources": [
+      {
+        "from": "../icons",
+        "to": "icons"
+      }
+    ],
+    "mac": {
+      "icon": "icons/512.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity"
+    }
   },
   "dependencies": {
     "electron-updater": "^6.6.2"

@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { runAgent } from '../../../src/engine/agent'
 import { runCouncil } from '../../../src/engine/council'
 import { skullGuardAll } from '../../../src/engine/skull'
@@ -64,9 +65,12 @@ let sessionRunning = false
 const pendingApprovals = new Map<number, (ok: boolean) => void>()
 
 // 8x8 crimson dot — the tray pulse until a real icon ships.
-const DOT_ON = nativeImage.createFromDataURL(
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFElEQVR4nGP8z8Dwn4EIwESMolGFI0chAG+bBj3p6QdGAAAAAElFTkSuQmCC'
-)
+function trayIcon(): Electron.NativeImage {
+  const p = join(process.resourcesPath ?? '', 'icons', '32.png')
+  const img = existsSync(p) ? nativeImage.createFromPath(p) : null
+  return img && !img.isEmpty() ? img.resize({ width: 16, height: 16 }) : nativeImage.createFromDataURL(
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFElEQVR4nGP8z8Dwn4EIwESMolGFI0chAG+bBj3p6QdGAAAAAElFTkSuQmCC')
+}
 
 function send(channel: string, payload: unknown): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
@@ -98,7 +102,7 @@ function createWindow(): void {
 }
 
 function createTray(): void {
-  tray = new Tray(DOT_ON)
+  tray = new Tray(trayIcon())
   tray.setToolTip('◆ HERETIC — idle')
   tray.setContextMenu(
     Menu.buildFromTemplate([
