@@ -1,6 +1,6 @@
 {
   "name": "heretic-desktop",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "HERETIC \u2014 desktop shell. Anathemetron lives inside.",
   "main": "./out/main/index.js",
   "author": {
@@ -47,7 +47,8 @@
         }
       ],
       "category": "Development",
-      "icon": "icons/256.png"
+      "icon": "icons/256.png",
+      "artifactName": "Heretic.${ext}"
     },
     "win": {
       "target": [
@@ -56,9 +57,16 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "icon": "icons/256.png"
+      "icon": "icons/256.png",
+      "artifactName": "Heretic-Setup.${ext}"
     },
     "publish": [
       {
@@ -84,6 +92,9 @@
         }
       ],
       "category": "public.app-category.productivity"
+    },
+    "nsis": {
+      "artifactName": "Heretic-Setup.${ext}"
     }
   },
   "dependencies": {

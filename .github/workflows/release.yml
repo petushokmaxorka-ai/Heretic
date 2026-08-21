@@ -50,11 +50,13 @@ jobs:
           npm ci
           npm run typecheck
           npm run build
-          npx electron-builder --win nsis --publish never
+          npx electron-builder --win nsis zip --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: heretic-windows
-          path: desktop/release/*.exe
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.zip
           if-no-files-found: error
 
   publish:

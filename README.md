@@ -23,7 +23,14 @@ npm install && npm test          # engine: 70+ hermetic tests, no GPU needed
 cd desktop && npm install && npm run dev
 ```
 
-Releases: AppImage + tar.gz (Linux), NSIS Setup (Windows) — auto-update built in.
+## Downloads (latest)
+
+| OS | File |
+|----|------|
+| Windows | [Heretic-Setup.exe](https://github.com/petushokmaxorka-ai/Heretic/releases/latest/download/Heretic-Setup.exe) (installer — auto-updates) |
+| Windows | [Heretic-win-portable.zip](https://github.com/petushokmaxorka-ai/Heretic/releases/latest/download/Heretic-win-portable.zip) (portable — no auto-update) |
+| Linux | [Heretic.AppImage](https://github.com/petushokmaxorka-ai/Heretic/releases/latest/download/Heretic.AppImage) (auto-updates) |
+| Linux | [Heretic.tar.gz](https://github.com/petushokmaxorka-ai/Heretic/releases/latest/download/Heretic.tar.gz) (no auto-update) |
 
 ## Safety laws
 
