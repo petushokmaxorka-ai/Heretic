@@ -76,4 +76,44 @@ export const fsList: Tool = {
   }
 }
 
-export const fsTools: Tool[] = [fsRead, fsWrite, fsList]
+export const fsEdit: Tool = {
+  name: 'fs.edit',
+  description:
+    'Edit a file precisely: replace exact text `old` with `new` (first occurrence; all=true for every occurrence). Fails honestly when `old` is not found — nothing is written.',
+  mutating: true,
+  async run(args, ctx): Promise<ToolResult> {
+    try {
+      const path = String(args.path ?? '')
+      const oldText = String(args.old ?? '')
+      const newText = String(args.new ?? '')
+      if (!path || !oldText) return { ok: false, output: 'fs.edit: args.path and args.old are required' }
+      const abs = sb(ctx).resolve(path)
+      const src = await readFile(abs, 'utf-8').catch(() => null)
+      if (src === null) return { ok: false, output: `fs.edit: file not found: ${path}` }
+      let count = 0
+      let out: string
+      if (args.all === true) {
+        count = src.split(oldText).length - 1
+        out = count ? src.split(oldText).join(newText) : src
+      } else {
+        const i = src.indexOf(oldText)
+        if (i < 0) {
+          count = 0
+          out = src
+        } else {
+          count = 1
+          out = src.slice(0, i) + newText + src.slice(i + oldText.length)
+        }
+      }
+      if (count === 0) {
+        return { ok: false, output: `fs.edit: old text not found in ${path} — nothing changed (file untouched)` }
+      }
+      await writeFile(abs, out, 'utf-8')
+      return { ok: true, output: `edited ${path}: ${count} replacement(s), file is now ${out.length} chars` }
+    } catch (e) {
+      return { ok: false, output: `fs.edit failed: ${(e as Error).message}` }
+    }
+  }
+}
+
+export const fsTools: Tool[] = [fsRead, fsWrite, fsList, fsEdit]

@@ -22,6 +22,9 @@ import { Sandbox } from './tools/sandbox.js'
 import { runChat } from './engine/chat.js'
 import { observe } from './engine/observe.js'
 import { webSearchTool } from './tools/search.js'
+import { codeSearch } from './tools/code.js'
+import { fetchTool } from './tools/fetch.js'
+import { planTools } from './tools/plan.js'
 import { isThinkingLevel, type ThinkingLevel } from './thinking.js'
 import type { ApprovalPolicy, Brain, Step } from './protocol/types.js'
 
@@ -157,7 +160,7 @@ async function main(): Promise<number> {
   }
 
   const policy = has('dry') ? denyAll : has('yes') || chatMode ? autoAllow : await interactivePolicy()
-  const tools = skullGuardAll([...fsTools, shellTool, ...vaultTools, webSearchTool])
+  const tools = skullGuardAll([...fsTools, shellTool, ...vaultTools, webSearchTool, codeSearch, fetchTool, ...planTools])
 
   if (chatMode) {
     let web = has('web')

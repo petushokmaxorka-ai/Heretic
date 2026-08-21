@@ -26,13 +26,16 @@ import { IPC, type BrainConfig, type TrustMode, type ChatRequestPayload, type Au
 import { runChat } from '../../../src/engine/chat'
 import { observe } from '../../../src/engine/observe'
 import { webSearchTool } from '../../../src/tools/search'
+import { codeSearch } from '../../../src/tools/code'
+import { fetchTool } from '../../../src/tools/fetch'
+import { planTools } from '../../../src/tools/plan'
 import { discoverSearxng } from '../../../src/discovery'
 
 let win: BrowserWindow | null = null
 let searxngBase: string | null | undefined
 
 function buildTools(): import('../../../src/protocol/types').Tool[] {
-  return skullGuardAll([...fsTools, shellTool, ...vaultTools, webSearchTool, createBrowserTool(() => win)])
+  return skullGuardAll([...fsTools, shellTool, ...vaultTools, webSearchTool, codeSearch, fetchTool, ...planTools, createBrowserTool(() => win)])
 }
 
 async function getSearxng(): Promise<string | null> {
