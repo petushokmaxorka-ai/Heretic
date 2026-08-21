@@ -28,7 +28,7 @@ jobs:
           npm ci
           npm run typecheck
           npm run build
-          npx electron-builder --linux AppImage tar.gz
+          npx electron-builder --linux AppImage tar.gz --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: heretic-linux
@@ -50,7 +50,7 @@ jobs:
           npm ci
           npm run typecheck
           npm run build
-          npx electron-builder --win nsis
+          npx electron-builder --win nsis --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: heretic-windows
