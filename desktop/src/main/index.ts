@@ -4,7 +4,8 @@
 // Engine (Anathemetron) runs here; renderer only sees IPC events.
 // Close-to-tray: the window can die, the organism keeps ticking.
 
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification, safeStorage } from 'electron'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -33,6 +34,8 @@ import { discoverSearxng } from '../../../src/discovery'
 
 let win: BrowserWindow | null = null
 let searxngBase: string | null | undefined
+let sessionAbort: AbortController | null = null
+let chatAbort: AbortController | null = null
 
 function buildTools(): import('../../../src/protocol/types').Tool[] {
   return skullGuardAll([...fsTools, shellTool, ...vaultTools, webSearchTool, codeSearch, fetchTool, ...planTools, createBrowserTool(() => win)])
@@ -106,14 +109,23 @@ function buildBrain(cfg: BrainConfig): Brain {
 function policyFor(mode: TrustMode): ApprovalPolicy {
   if (mode === 'auto') return autoAllow
   if (mode === 'dry') return denyAll
-  return {
-    allow: (action, detail) =>
-      new Promise<boolean>((resolve) => {
-        const id = Date.now() + Math.random()
-        pendingApprovals.set(id, resolve)
-        send(IPC.APPROVAL_REQUEST, { id, action, detail })
-      })
+  if (mode === 'edits') {
+    return {
+      allow: async (action, detail, diff) => {
+        if (action !== 'fs.write' && action !== 'fs.edit') return true
+        return askUser(action, detail, diff)
+      }
+    }
   }
+  return { allow: (action, detail, diff) => askUser(action, detail, diff) }
+}
+
+function askUser(action: string, detail: string, diff?: import('../../../src/protocol/types').ApprovalDiff): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const id = Date.now() + Math.random()
+    pendingApprovals.set(id, resolve)
+    send(IPC.APPROVAL_REQUEST, { id, action, detail, diff })
+  })
 }
 
 app.whenReady().then(() => {
@@ -129,15 +141,53 @@ app.whenReady().then(() => {
   })
 
   let chatRunning = false
+  ipcMain.handle(IPC.CHAT_STOP, () => {
+    chatAbort?.abort()
+    return { ok: true }
+  })
+  ipcMain.handle(IPC.SESSION_STOP, () => {
+    sessionAbort?.abort()
+    return { ok: true }
+  })
+  ipcMain.handle(IPC.BRAINS_SAVE, (_e, cfg: { url?: string; model?: string; key?: string }) => {
+    try {
+      const file = join(app.getPath('userData'), 'brains.json')
+      const encrypted = Boolean(cfg.key) && safeStorage.isEncryptionAvailable()
+      const keyEnc = cfg.key ? (encrypted ? safeStorage.encryptString(cfg.key).toString('base64') : cfg.key) : ''
+      const stored = { url: cfg.url ?? '', model: cfg.model ?? '', keyEnc, encrypted }
+      writeFileSync(file, JSON.stringify(stored), 'utf-8')
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  })
+  ipcMain.handle(IPC.BRAINS_LOAD, () => {
+    try {
+      const file = join(app.getPath('userData'), 'brains.json')
+      const raw = readFileSync(file, 'utf-8')
+      const j = JSON.parse(raw) as { url?: string; model?: string; keyEnc?: string; encrypted?: boolean }
+      let key = ''
+      if (j.keyEnc) {
+        key = j.encrypted && safeStorage.isEncryptionAvailable()
+          ? safeStorage.decryptString(Buffer.from(j.keyEnc, 'base64'))
+          : j.keyEnc
+      }
+      return { ok: true, url: j.url ?? '', model: j.model ?? '', key }
+    } catch {
+      return { ok: false, url: '', model: '', key: '' }
+    }
+  })
   ipcMain.handle(IPC.CHAT_SEND, async (_e, payload: ChatRequestPayload) => {
     if (chatRunning) return { answer: '', sources: [], error: 'chat busy' }
     chatRunning = true
+    chatAbort = new AbortController()
     try {
       const r = await runChat({
         history: payload.history,
         brain: buildBrain(payload.brain),
         thinking: payload.thinking,
         web: payload.web,
+        signal: chatAbort.signal,
         onDelta: (d) => send(IPC.CHAT_DELTA, { delta: d }),
         onStatus: (line) => send(IPC.CHAT_STATUS, { line })
       })
@@ -152,6 +202,7 @@ app.whenReady().then(() => {
   ipcMain.handle(IPC.AUTO_SEND, async (_e, payload: AutoRequestPayload) => {
     if (chatRunning) return { kind: 'chat', answer: '', sources: [], error: 'busy' }
     chatRunning = true
+    chatAbort = new AbortController()
     const lastUser = [...payload.history].reverse().find((m) => m.role === 'user')?.content ?? ''
     try {
       let mode: 'chat' | 'agent' = 'chat'
@@ -184,6 +235,7 @@ app.whenReady().then(() => {
         thinking,
         web,
         searxng: web ? (await getSearxng()) ?? undefined : undefined,
+        signal: chatAbort.signal,
         onDelta: (d) => send(IPC.CHAT_DELTA, { delta: d }),
         onStatus: (line) => send(IPC.CHAT_STATUS, { line })
       })
@@ -204,6 +256,7 @@ app.whenReady().then(() => {
   }) => {
     if (sessionRunning) return { ok: false, error: 'session already running' }
     sessionRunning = true
+    sessionAbort = new AbortController()
     tray?.setToolTip('◆ HERETIC — agent running')
     const sandboxRoot = root ?? join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)
     mkdirSync(sandboxRoot, { recursive: true })
@@ -214,7 +267,9 @@ app.whenReady().then(() => {
         sandbox: new Sandbox(sandboxRoot),
         policy: policyFor(trust),
         maxSteps: 12,
-        onStep: (step: import('../../../src/protocol/types').Step) => send(IPC.SESSION_STEP, step)
+        signal: sessionAbort!.signal,
+        onStep: (step: import('../../../src/protocol/types').Step) => send(IPC.SESSION_STEP, step),
+        onThinking: (t: string) => send(IPC.SESSION_THINKING, { text: t })
       }
       const result = advisor
         ? await runCouncil(task, { brain: buildBrain(brain), advisors: [{ brain: buildBrain(advisor), role: 'advisor' }], ...base })

@@ -374,3 +374,16 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 .msg-content a { color: var(--ok); }
 .msg-content li { margin-left: 18px; list-style: "◆  "; }
 .msg-content p { margin: 6px 0; }
+
+/* approval diff + stopping */
+.approval-diff { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.diff-path { font-size: 11px; color: var(--warn); }
+.diff-before, .diff-after {
+  max-height: 140px; overflow: auto; white-space: pre-wrap;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px;
+  border-radius: 8px; padding: 8px 10px; margin: 0;
+}
+.diff-before { background: var(--bad-soft); color: var(--bad); }
+.diff-after { background: var(--ok-soft); color: var(--ok); }
+.sendbtn.stopping { background: var(--bad); animation: pulse-stop 1.2s infinite; }
+@keyframes pulse-stop { 50% { opacity: 0.55; } }

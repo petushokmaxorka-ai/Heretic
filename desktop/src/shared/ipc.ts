@@ -9,6 +9,11 @@ export const IPC = {
   APPROVAL_DECIDE: 'approval:decide',
   CHAT_SEND: 'chat:send',
   AUTO_SEND: 'auto:send',
+  SESSION_STOP: 'session:stop',
+  CHAT_STOP: 'chat:stop',
+  BRAINS_SAVE: 'brains:save',
+  BRAINS_LOAD: 'brains:load',
+  SESSION_THINKING: 'session:thinking',
   CHAT_DELTA: 'chat:delta',
   CHAT_STATUS: 'chat:status'
 } as const
@@ -20,7 +25,7 @@ export interface BrainConfig {
   key?: string
 }
 
-export type TrustMode = 'manual' | 'auto' | 'dry'
+export type TrustMode = 'manual' | 'edits' | 'auto' | 'dry'
 
 export interface SessionRequest {
   task: string
@@ -45,4 +50,11 @@ export interface AutoRequestPayload {
   brain: BrainConfig
   trust: TrustMode
   auto: boolean
+}
+
+export interface StoredBrain {
+  url: string
+  model: string
+  keyEnc: string
+  encrypted: boolean
 }

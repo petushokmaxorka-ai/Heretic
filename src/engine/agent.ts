@@ -20,6 +20,7 @@ import type {
   ToolContext
 } from '../protocol/types.js'
 import { Sandbox } from '../tools/sandbox.js'
+import { previewFor } from './preview.js'
 
 const TOOL_FENCE = /```tool\s*([\s\S]*?)```/
 
@@ -32,12 +33,17 @@ export interface AgentOptions {
   onStep?: (step: Step) => void
   /** ledger index offset — council prepends its own steps */
   startAt?: number
+  /** cooperative cancellation */
+  signal?: AbortSignal
+  /** live thinking stream (brain deltas) for the ledger */
+  onThinking?: (t: string) => void
 }
 
 export interface AgentResult {
   ok: boolean
   final: string
   steps: Step[]
+  aborted?: boolean
 }
 
 function systemPrompt(tools: Tool[], root: string): string {
@@ -73,7 +79,23 @@ export async function runAgent(task: string, opts: AgentOptions): Promise<AgentR
   ]
 
   for (let turn = 0; turn < maxSteps; turn++) {
-    const reply = await opts.brain.chat(messages)
+    if (opts.signal?.aborted) {
+      emit({ index: ++index, kind: 'final', title: 'aborted', detail: 'stopped by user', verdict: 'rejected' })
+      return { ok: false, final: '', steps, aborted: true }
+    }
+    let reply: string
+    try {
+      reply = await opts.brain.chat(messages, {
+        signal: opts.signal,
+        onDelta: opts.onThinking
+      })
+    } catch (e) {
+      if (opts.signal?.aborted) {
+        emit({ index: ++index, kind: 'final', title: 'aborted', detail: 'stopped by user', verdict: 'rejected' })
+        return { ok: false, final: '', steps, aborted: true }
+      }
+      throw e
+    }
     messages.push({ role: 'assistant', content: reply })
 
     const fence = reply.match(TOOL_FENCE)
@@ -103,7 +125,8 @@ export async function runAgent(task: string, opts: AgentOptions): Promise<AgentR
 
     if (tool.mutating) {
       const detail = JSON.stringify(call.args ?? {}).slice(0, 200)
-      const allowed = await opts.policy.allow(name, detail)
+      const diff = await previewFor(name, call.args ?? {}, opts.sandbox.root)
+      const allowed = await opts.policy.allow(name, detail, diff)
       if (!allowed) {
         const note = 'denied by approval policy (HITL)'
         messages.push({ role: 'tool', content: 'ERROR denied by policy' })

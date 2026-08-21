@@ -22,13 +22,21 @@ interface ChatApi extends AutoApi {
   onChatStatus(cb: (line: string) => void): () => void
 }
 
-interface HereticApi extends ChatApi {
+interface StopApi {
+  stopSession(): Promise<{ ok: boolean }>
+  stopChat(): Promise<{ ok: boolean }>
+  saveBrains(cfg: { url?: string; model?: string; key?: string }): Promise<{ ok: boolean }>
+  loadBrains(): Promise<{ ok: boolean; url: string; model: string; key: string }>
+  onThinking(cb: (t: string) => void): () => void
+}
+
+interface HereticApi extends ChatApi, StopApi {
   runSession(task: string, brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }, trust: string, advisor?: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }): Promise<{ ok: boolean; error?: string }>
   scanBrains(): Promise<{ name: string; baseUrl: string; models: string[] }[]>
   decideApproval(id: number, ok: boolean): Promise<void>
   onStep(cb: (s: StepView) => void): () => void
   onFinal(cb: (r: { ok: boolean; final: string }) => void): () => void
-  onApproval(cb: (req: { id: number; action: string; detail: string }) => void): () => void
+  onApproval(cb: (req: { id: number; action: string; detail: string; diff?: { path: string; before: string; after: string } }) => void): () => void
 }
 
 const api = (window as unknown as { heretic: HereticApi }).heretic
@@ -89,9 +97,30 @@ function renderStep(s: StepView): void {
     </div>`)
 }
 
-api.onStep(renderStep)
+let thinkingLine: HTMLDivElement | null = null
+api.onThinking((t) => {
+  if (!thinkingLine) {
+    thinkingLine = document.createElement('div')
+    thinkingLine.className = 'status-chip'
+    thinkingLine.textContent = '◈ '
+    ledger.appendChild(thinkingLine)
+  }
+  thinkingLine.textContent = '◈ ' + t.slice(-220)
+  scrollEnd(ledger)
+})
+api.onStep((s) => {
+  if (thinkingLine) {
+    thinkingLine.remove()
+    thinkingLine = null
+  }
+  renderStep(s)
+})
 api.onFinal((r) => {
   running = false
+  if (thinkingLine) {
+    thinkingLine.remove()
+    thinkingLine = null
+  }
   const btn = $('sendbtn-ignite') ?? $('ignite')
   btn.textContent = '◆'
   ledgerCard(
@@ -101,10 +130,15 @@ api.onFinal((r) => {
   )
 })
 api.onApproval((req) => {
+  const diffHtml = req.diff
+    ? `<div class="approval-diff"><div class="diff-path mono">${req.diff.path}</div>
+       <pre class="diff-before">${req.diff.before || '(new file)'}</pre>
+       <pre class="diff-after">${req.diff.after}</pre></div>`
+    : ''
   const row = ledgerCard(`
     <div class="approval-card">
       <span class="step-dot" style="background: var(--warn)"></span>
-      <span class="grow"><b>${req.action}</b> <span class="dim small mono">${req.detail}</span></span>
+      <span class="grow"><b>${req.action}</b> <span class="dim small mono">${req.detail}</span>${diffHtml}</span>
       <button class="approve-btn">Approve</button>
       <button class="deny-btn">Deny</button>
     </div>`)
@@ -152,7 +186,10 @@ councilBox.addEventListener('change', () => {
 
 // ── agent ignition ───────────────────────────────────────
 $('ignite').addEventListener('click', () => {
-  if (running) return
+  if (running) {
+    if (($('ignite') as HTMLElement).classList.contains('stopping')) void api.stopSession()
+    return
+  }
   const task = ($('task') as HTMLInputElement).value.trim()
   if (!task) return
 
@@ -180,12 +217,19 @@ $('ignite').addEventListener('click', () => {
   }
 
   running = true
-  ;($('ignite') as HTMLElement).textContent = advisor ? '⧉' : '···'
+  const igniteBtn = $('ignite') as HTMLElement
+  igniteBtn.textContent = '■'
+  igniteBtn.title = 'stop'
+  igniteBtn.classList.add('stopping')
   ledger.innerHTML = ''
   ledgerCard(
     `<div class="status-chip">session start · trust=${($('trust') as HTMLSelectElement).value}${advisor ? ' · council' : ''}</div>`
   )
-  void api.runSession(task, selected, ($('trust') as HTMLSelectElement).value, advisor)
+  void api.runSession(task, selected, ($('trust') as HTMLSelectElement).value, advisor).then(() => {
+    igniteBtn.textContent = '◆'
+    igniteBtn.title = 'ignite'
+    igniteBtn.classList.remove('stopping')
+  })
 })
 
 $('task').addEventListener('keydown', (e) => {
@@ -298,7 +342,9 @@ const sendChat = (): void => {
   streamTarget = aiMessage()
   streamText = ''
   chatBusy = true
-  ;($('send') as HTMLButtonElement).disabled = true
+  const sendBtn = $('send') as HTMLButtonElement
+  sendBtn.classList.add('stopping')
+  sendBtn.onclick = () => void api.stopChat()
   void api
     .autoSend({
       history: [...chatHistory],
@@ -308,7 +354,8 @@ const sendChat = (): void => {
     })
     .then((r) => {
       chatBusy = false
-      ;($('send') as HTMLButtonElement).disabled = false
+      sendBtn.classList.remove('stopping')
+      sendBtn.onclick = null
       if (r.error) {
         streamTarget!.textContent = `✗ ${r.error}`
         streamTarget = null
@@ -367,6 +414,15 @@ const persistCurrentSession = (): void => {
   else all.push(entry)
   saveSessions(all)
   renderSessionSelect()
+
+// restore persisted brain config on boot
+void api.loadBrains().then((b) => {
+  if (!b.ok || !b.url) return
+  ;($('c-url') as HTMLInputElement).value = b.url
+  ;($('c-model') as HTMLInputElement).value = b.model
+  ;($('c-key') as HTMLInputElement).value = b.key
+  ;($('brain-label') as HTMLElement).textContent = `${b.model || 'custom'}`
+})
 }
 
 const restoreSession = (id: string): void => {
@@ -394,10 +450,39 @@ $('new-chat').addEventListener('click', () => {
   chatHistory.length = 0
   chatLog.innerHTML = '<div class="empty"><div class="empty-mark">◆</div><div class="empty-title">Новая сессия</div><div class="empty-sub">Observe сам выберет: чат или агент</div></div>'
   renderSessionSelect()
+
+// restore persisted brain config on boot
+void api.loadBrains().then((b) => {
+  if (!b.ok || !b.url) return
+  ;($('c-url') as HTMLInputElement).value = b.url
+  ;($('c-model') as HTMLInputElement).value = b.model
+  ;($('c-key') as HTMLInputElement).value = b.key
+  ;($('brain-label') as HTMLElement).textContent = `${b.model || 'custom'}`
+})
 })
 renderSessionSelect()
 
-$('send').addEventListener('click', sendChat)
+// restore persisted brain config on boot
+void api.loadBrains().then((b) => {
+  if (!b.ok || !b.url) return
+  ;($('c-url') as HTMLInputElement).value = b.url
+  ;($('c-model') as HTMLInputElement).value = b.model
+  ;($('c-key') as HTMLInputElement).value = b.key
+  ;($('brain-label') as HTMLElement).textContent = `${b.model || 'custom'}`
+})
+
+const persistBrains = (): void => {
+  void api.saveBrains({
+    url: ($('c-url') as HTMLInputElement).value.trim(),
+    model: ($('c-model') as HTMLInputElement).value.trim(),
+    key: ($('c-key') as HTMLInputElement).value.trim()
+  })
+}
+$('send').addEventListener('click', () => {
+  if (($('send') as HTMLElement).classList.contains('stopping')) return
+  persistBrains()
+  sendChat()
+})
 $('chat-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') sendChat()
 })

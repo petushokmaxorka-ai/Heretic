@@ -22,6 +22,17 @@ const api = {
     ipcRenderer.on(IPC.CHAT_STATUS, h)
     return () => ipcRenderer.removeListener(IPC.CHAT_STATUS, h)
   },
+  stopSession: (): Promise<{ ok: boolean }> => ipcRenderer.invoke(IPC.SESSION_STOP),
+  stopChat: (): Promise<{ ok: boolean }> => ipcRenderer.invoke(IPC.CHAT_STOP),
+  saveBrains: (cfg: { url?: string; model?: string; key?: string }): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke(IPC.BRAINS_SAVE, cfg),
+  loadBrains: (): Promise<{ ok: boolean; url: string; model: string; key: string }> =>
+    ipcRenderer.invoke(IPC.BRAINS_LOAD),
+  onThinking: (cb: (t: string) => void): (() => void) => {
+    const h = (_e: unknown, v: { text: string }): void => cb(v.text)
+    ipcRenderer.on(IPC.SESSION_THINKING, h)
+    return () => ipcRenderer.removeListener(IPC.SESSION_THINKING, h)
+  },
   decideApproval: (id: number, ok: boolean): Promise<void> =>
     ipcRenderer.invoke(IPC.APPROVAL_DECIDE, { id, ok }),
   onStep: (cb: (step: { index: number; title: string; detail: string; verdict: string; note?: string; kind: string }) => void): (() => void) => {

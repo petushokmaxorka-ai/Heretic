@@ -20,6 +20,8 @@ export interface RunChatOptions {
   searchFn?: (q: string, opts?: { searxng?: string }) => Promise<SearchResult[]>
   onDelta?: (t: string) => void
   onStatus?: (line: string) => void
+  /** cooperative cancellation */
+  signal?: AbortSignal
 }
 
 export interface ChatResult {
@@ -59,7 +61,8 @@ export async function runChat(opts: RunChatOptions): Promise<ChatResult> {
     maxTokens: thinking.maxTokens,
     temperature: 0.4,
     onDelta: opts.onDelta,
-    reasoningEffort: thinking.effort
+    reasoningEffort: thinking.effort,
+    signal: opts.signal
   })
 
   return { answer, sources }

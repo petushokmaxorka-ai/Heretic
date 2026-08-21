@@ -36,7 +36,9 @@ export class OpenAIBrain implements Brain {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(180_000)
+      signal: opts?.signal
+        ? AbortSignal.any([AbortSignal.timeout(180_000), opts.signal])
+        : AbortSignal.timeout(180_000)
     })
 
     if (!res.ok) {

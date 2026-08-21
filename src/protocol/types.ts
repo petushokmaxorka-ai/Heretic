@@ -16,6 +16,8 @@ export interface ChatOptions {
   onDelta?: (t: string) => void
   /** reasoning-effort hint: low/medium/high/max — honored by backends that support it */
   reasoningEffort?: string
+  /** session abort — cooperative cancellation */
+  signal?: AbortSignal
 }
 
 /** A brain is any OpenAI-compatible chat endpoint (local runtime or cloud API). */
@@ -56,6 +58,12 @@ export interface Tool {
   run(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>
 }
 
+export interface ApprovalDiff {
+  path: string
+  before: string
+  after: string
+}
+
 export interface ApprovalPolicy {
-  allow(action: string, detail: string): Promise<boolean>
+  allow(action: string, detail: string, diff?: ApprovalDiff): Promise<boolean>
 }
