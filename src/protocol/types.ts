@@ -18,6 +18,8 @@ export interface ChatOptions {
   reasoningEffort?: string
   /** session abort — cooperative cancellation */
   signal?: AbortSignal
+  /** ask the backend for strict JSON output (classifiers, routers) */
+  responseFormat?: 'json'
 }
 
 /** A brain is any OpenAI-compatible chat endpoint (local runtime or cloud API). */

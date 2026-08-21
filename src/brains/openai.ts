@@ -8,13 +8,21 @@ function endpoint(baseUrl: string): string {
   return new URL('v1/chat/completions', baseUrl.endsWith('/') ? baseUrl : baseUrl + '/').toString()
 }
 
+/** per-brain defaults: temperature ceiling, token budget, system suffix */
+export interface BrainDefaults {
+  temperature?: number
+  maxTokens?: number
+  promptSuffix?: string
+}
+
 export class OpenAIBrain implements Brain {
   constructor(
     readonly id: string,
     readonly label: string,
     private readonly baseUrl: string,
     private readonly model: string,
-    private readonly apiKey?: string
+    private readonly apiKey?: string,
+    private readonly defaults?: BrainDefaults
   ) {}
 
   async chat(messages: ChatMessage[], opts?: ChatOptions & { onDelta?: (t: string) => void; reasoningEffort?: string }): Promise<string> {
@@ -24,10 +32,17 @@ export class OpenAIBrain implements Brain {
     const stream = Boolean(opts?.onDelta)
     const body: Record<string, unknown> = {
       model: this.model,
-      messages,
-      max_tokens: opts?.maxTokens ?? 1024,
-      temperature: opts?.temperature ?? 0.3,
+      messages: this.defaults?.promptSuffix
+        ? messages.map((m, i) =>
+            i === 0 && m.role === 'system' ? { ...m, content: m.content + '\n' + this.defaults!.promptSuffix } : m
+          )
+        : messages,
+      max_tokens: opts?.maxTokens ?? this.defaults?.maxTokens ?? 1024,
+      temperature: opts?.temperature ?? this.defaults?.temperature ?? 0.3,
       stream
+    }
+    if (opts?.responseFormat === 'json') {
+      body.response_format = { type: 'json_object' }
     }
     // Backends that support reasoning control honor it; others ignore the field.
     if (opts?.reasoningEffort) body.reasoning_effort = opts.reasoningEffort

@@ -96,7 +96,7 @@ export async function observeSmart(message: string, brain: Brain): Promise<Verdi
         { role: 'system', content: ROUTER_PROMPT },
         { role: 'user', content: message.slice(0, 1000) }
       ],
-      { maxTokens: 120, temperature: 0 }
+      { maxTokens: 120, temperature: 0, responseFormat: 'json' }
     )
     const m = raw.match(/\{[\s\S]*\}/)
     if (!m) throw new Error('no json')

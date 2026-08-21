@@ -58,7 +58,29 @@ function systemPrompt(tools: Tool[], root: string): string {
     '{"name":"fs.read","args":{"path":"notes.txt"}}',
     '```',
     `All paths are relative to the sandbox root "${root}". Escape attempts are rejected.`,
-    'After the tools give you what you need, reply with plain text (no fence) as the final answer.'
+    'After the tools give you what you need, reply with plain text (no fence) as the final answer.',
+    '',
+    'Example — tool call, then final answer:',
+    'user: what is in notes.txt?',
+    'assistant:',
+    '\u0060\u0060\u0060tool',
+    '{"name":"fs.read","args":{"path":"notes.txt"}}',
+    '\u0060\u0060\u0060',
+    'tool output: the file contains: buy milk',
+    'assistant: The file says: buy milk.',
+    '',
+    'Example — recovering from an error (wrong name -> list, then retry):',
+    'assistant:',
+    '\u0060\u0060\u0060tool',
+    '{"name":"fs.read","args":{"path":"note.txt"}}',
+    '\u0060\u0060\u0060',
+    'tool output: ERROR fs.read failed: file not found: note.txt',
+    'assistant:',
+    '\u0060\u0060\u0060tool',
+    '{"name":"fs.list","args":{}}',
+    '\u0060\u0060\u0060',
+    'tool output: notes.txt',
+    'assistant: The file is named notes.txt; it says: buy milk.'
   ].join('\n')
 }
 
@@ -72,6 +94,7 @@ export async function runAgent(task: string, opts: AgentOptions): Promise<AgentR
     opts.onStep?.(step)
   }
 
+  let malformedStreak = 0
   const ctx: ToolContext = { sandboxRoot: opts.sandbox.root }
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt(opts.tools, opts.sandbox.root) },
@@ -108,17 +131,29 @@ export async function runAgent(task: string, opts: AgentOptions): Promise<AgentR
     try {
       call = JSON.parse(fence[1]!.trim()) as typeof call
     } catch (e) {
-      const note = `malformed tool call: ${(e as Error).message}`
-      messages.push({ role: 'tool', content: `ERROR ${note}` })
+      malformedStreak++
+      const note = malformedStreak >= 2 ? 'protocol violations — giving up' : 'malformed JSON — repair requested'
+      messages.push({
+        role: 'tool',
+        content:
+          `ERROR: that tool call was NOT valid JSON (${(e as Error).message}). ` +
+          'Reply again with EXACTLY one fenced block in this shape:\n' +
+          '\u0060\u0060\u0060tool\n{"name":"<tool-name>","args":{<arguments>}}\n\u0060\u0060\u0060'
+      })
       emit({ index: ++index, kind: 'tool', title: '(malformed)', detail: fence[1]!.trim().slice(0, 120), verdict: 'rejected', note })
+      if (malformedStreak >= 2) {
+        emit({ index: ++index, kind: 'final', title: 'stopped', detail: 'repeated protocol violations', verdict: 'rejected' })
+        return { ok: false, final: '', steps }
+      }
       continue
     }
+    malformedStreak = 0
 
     const name = String(call.name ?? '')
     const tool = opts.tools.find((t) => t.name === name)
     if (!tool) {
-      const note = `unknown tool "${name}"`
-      messages.push({ role: 'tool', content: `ERROR ${note}` })
+      const note = `unknown tool "${name}" — available: ${opts.tools.map((t) => t.name).join(', ')}`
+      messages.push({ role: 'tool', content: `ERROR ${note}. Reply with a corrected tool call.` })
       emit({ index: ++index, kind: 'tool', title: name || '(unnamed)', detail: JSON.stringify(call.args ?? {}), verdict: 'rejected', note })
       continue
     }
