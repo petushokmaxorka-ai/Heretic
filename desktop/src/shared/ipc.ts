@@ -8,6 +8,7 @@ export const IPC = {
   APPROVAL_REQUEST: 'approval:request',
   APPROVAL_DECIDE: 'approval:decide',
   CHAT_SEND: 'chat:send',
+  AUTO_SEND: 'auto:send',
   CHAT_DELTA: 'chat:delta',
   CHAT_STATUS: 'chat:status'
 } as const
@@ -37,4 +38,11 @@ export interface ChatRequestPayload {
   brain: BrainConfig
   thinking: 'low' | 'mid' | 'high' | 'max'
   web: boolean
+}
+
+export interface AutoRequestPayload {
+  history: ChatTurn[]
+  brain: BrainConfig
+  trust: TrustMode
+  auto: boolean
 }

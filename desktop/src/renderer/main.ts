@@ -9,7 +9,11 @@ interface StepView {
   note?: string
 }
 
-interface ChatApi {
+interface AutoApi {
+  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }>
+}
+
+interface ChatApi extends AutoApi {
   chatSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; thinking: string; web: boolean }): Promise<{ answer: string; sources: { title: string; url: string }[]; error?: string }>
   onChatDelta(cb: (d: string) => void): () => void
   onChatStatus(cb: (line: string) => void): () => void
@@ -200,11 +204,11 @@ const sendChat = (): void => {
   chatBusy = true
   ;($('send') as HTMLElement).textContent = '···'
   void api
-    .chatSend({
+    .autoSend({
       history: [...chatHistory],
       brain: currentBrain(),
-      thinking: ($('think') as HTMLSelectElement).value,
-      web: ($('web') as HTMLInputElement).checked
+      trust: ($('trust') as HTMLSelectElement).value,
+      auto: ($('auto') as HTMLInputElement).checked
     })
     .then((r) => {
       chatBusy = false
@@ -213,7 +217,7 @@ const sendChat = (): void => {
         streamTarget!.textContent = `✗ ${r.error}`
         return
       }
-      if (!streamText && r.answer) streamTarget!.textContent = r.answer
+      if (!streamText && r.answer) streamTarget!.textContent = r.kind === 'agent' ? `⚙ ${r.ok ? 'session complete' : 'no verified final'}\n\n${r.answer}` : r.answer
       if (r.sources.length) chatLine('chat-status', r.sources.map((s, i) => `[${i + 1}] ${s.title} — ${s.url}`).join('\n'))
       chatHistory.push({ role: 'assistant', content: r.answer })
       streamTarget = null

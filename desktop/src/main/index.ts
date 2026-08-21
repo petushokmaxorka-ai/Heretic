@@ -22,10 +22,23 @@ import { vaultTools } from '../../../src/tools/vault'
 import type { ApprovalPolicy, Brain } from '../../../src/protocol/types'
 import { createBrowserTool } from './browser-tool'
 import { initUpdater } from './updater'
-import { IPC, type BrainConfig, type TrustMode, type ChatRequestPayload } from '../shared/ipc'
+import { IPC, type BrainConfig, type TrustMode, type ChatRequestPayload, type AutoRequestPayload } from '../shared/ipc'
 import { runChat } from '../../../src/engine/chat'
+import { observe } from '../../../src/engine/observe'
+import { webSearchTool } from '../../../src/tools/search'
+import { discoverSearxng } from '../../../src/discovery'
 
 let win: BrowserWindow | null = null
+let searxngBase: string | null | undefined
+
+function buildTools(): import('../../../src/protocol/types').Tool[] {
+  return skullGuardAll([...fsTools, shellTool, ...vaultTools, webSearchTool, createBrowserTool(() => win)])
+}
+
+async function getSearxng(): Promise<string | null> {
+  if (searxngBase === undefined) searxngBase = await discoverSearxng()
+  return searxngBase
+}
 let tray: Tray | null = null
 let sessionRunning = false
 const pendingApprovals = new Map<number, (ok: boolean) => void>()
@@ -133,6 +146,52 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle(IPC.AUTO_SEND, async (_e, payload: AutoRequestPayload) => {
+    if (chatRunning) return { kind: 'chat', answer: '', sources: [], error: 'busy' }
+    chatRunning = true
+    const lastUser = [...payload.history].reverse().find((m) => m.role === 'user')?.content ?? ''
+    try {
+      let mode: 'chat' | 'agent' = 'chat'
+      let thinking: 'low' | 'mid' | 'high' | 'max' = 'mid'
+      let web = false
+      if (payload.auto) {
+        const v = observe(lastUser)
+        mode = v.mode
+        thinking = v.thinking
+        web = v.web
+        send(IPC.CHAT_STATUS, { line: `observe: ${v.mode}${web ? ' · web' : ''} · ${v.thinking} (${v.reasons.join(', ')})` })
+      }
+      if (mode === 'agent') {
+        const r = await runAgent(lastUser, {
+          brain: buildBrain(payload.brain),
+          tools: buildTools(),
+          sandbox: new Sandbox(join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)),
+          policy: policyFor(payload.trust),
+          maxSteps: 8,
+          onStep: (s) =>
+            send(IPC.CHAT_STATUS, {
+              line: `${s.verdict === 'verified' ? '✓' : s.verdict === 'awaiting' ? '⚠' : '✗'} ${s.index} ${s.title} ${s.detail.split('\n')[0] ?? ''}${s.note ? ` [${s.note}]` : ''}`
+            })
+        })
+        return { kind: 'agent', answer: r.final, sources: [], ok: r.ok }
+      }
+      const r = await runChat({
+        history: payload.history,
+        brain: buildBrain(payload.brain),
+        thinking,
+        web,
+        searxng: web ? (await getSearxng()) ?? undefined : undefined,
+        onDelta: (d) => send(IPC.CHAT_DELTA, { delta: d }),
+        onStatus: (line) => send(IPC.CHAT_STATUS, { line })
+      })
+      return { kind: 'chat', answer: r.answer, sources: r.sources }
+    } catch (e) {
+      return { kind: 'chat', answer: '', sources: [], error: (e as Error).message }
+    } finally {
+      chatRunning = false
+    }
+  })
+
   ipcMain.handle(IPC.SESSION_RUN, async (_e, { task, brain, advisor, trust, root }: {
     task: string
     brain: BrainConfig
@@ -146,7 +205,7 @@ app.whenReady().then(() => {
     const sandboxRoot = root ?? join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)
     mkdirSync(sandboxRoot, { recursive: true })
     try {
-      const tools = skullGuardAll([...fsTools, shellTool, ...vaultTools, createBrowserTool(() => win)])
+      const tools = buildTools()
       const base = {
         tools,
         sandbox: new Sandbox(sandboxRoot),

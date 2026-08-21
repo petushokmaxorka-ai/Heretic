@@ -182,6 +182,17 @@ async function main(): Promise<number> {
     }
 
     if (task) {
+      if (auto) {
+        const v = observe(task)
+        console.log(`${C.dim}⚙ observe: ${v.mode}${v.web ? ' · web' : ''} · ${v.thinking} (${v.reasons.join(', ')})${C.off}`)
+        if (v.mode === 'agent') {
+          const r = await runAgent(task, { brain, tools, sandbox: new Sandbox(root), policy: autoAllow, maxSteps: 8 })
+          console.log(`\n${C.crimson}◆${C.off} ${r.final || '(no final answer)'}`)
+          return r.ok ? 0 : 1
+        }
+        web = web || v.web
+        if (isThinkingLevel(v.thinking)) thinking = v.thinking
+      }
       await ask(task)
       return 0
     }

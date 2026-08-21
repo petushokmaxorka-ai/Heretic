@@ -1,13 +1,15 @@
 // Preload — the only bridge. Renderer gets typed verbs, nothing more.
 
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type BrainConfig, type TrustMode, type ChatRequestPayload } from '../shared/ipc'
+import { IPC, type BrainConfig, type TrustMode, type ChatRequestPayload, type AutoRequestPayload } from '../shared/ipc'
 
 const api = {
   runSession: (task: string, brain: BrainConfig, trust: TrustMode, advisor?: BrainConfig): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.SESSION_RUN, { task, brain, advisor, trust }),
   scanBrains: (): Promise<{ name: string; baseUrl: string; models: string[] }[]> =>
     ipcRenderer.invoke(IPC.BRAINS_SCAN),
+  autoSend: (payload: AutoRequestPayload): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC.AUTO_SEND, payload),
   chatSend: (payload: ChatRequestPayload): Promise<{ answer: string; sources: { title: string; url: string; snippet: string }[]; error?: string }> =>
     ipcRenderer.invoke(IPC.CHAT_SEND, payload),
   onChatDelta: (cb: (d: string) => void): (() => void) => {

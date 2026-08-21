@@ -8,6 +8,12 @@ The face is a ledger, not a chat: every step the agent takes is a line with a ve
 
 ## Status
 
+Phase 0–4 shipped + CHAT PACK + OBSERVE: the surface picks itself. One input —
+the intent observer (homage to the void-shield observatory) classifies each
+request: chat or agent, needs web or not, thinking depth — with its reasons
+printed into the log. Transparent routing, manual override everywhere.
+SearXNG autodetect (:8888/:8080) rides the web path in Heretic-mode.
+
 Phase 0–4 shipped + CHAT PACK: flagship chat surface — ask anything, streaming
 answers (SSE), thinking levels low/mid/high/max (token budget + reasoning_effort
 hint + prompt directive), keyless web search (DuckDuckGo lite; SearXNG for
