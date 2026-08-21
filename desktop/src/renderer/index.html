@@ -1,73 +1,103 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
-  <title>HERETIC</title>
+  <title>Heretic</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header>
-    <span class="brand">◆ HERETIC</span>
-    <nav class="tabs">
-      <button class="tab active" id="tab-chat">CHAT</button>
-      <button class="tab" id="tab-agent">AGENT</button>
-    </nav>
-    <span id="brain-label" class="dim">brain: —</span>
-    <span class="spacer"></span>
-    <select id="trust" title="trust mode">
-      <option value="manual">manual</option>
-      <option value="auto">auto</option>
-      <option value="dry">dry</option>
-    </select>
-    <button id="scan" class="ghost">scan brains</button>
-  </header>
+  <div class="app">
+    <aside class="side">
+      <div class="logo" title="Heretic — Anathemetron lives inside">◆</div>
+      <nav class="side-nav">
+        <button id="nav-chat" class="nav active" title="Chat">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </button>
+        <button id="nav-agent" class="nav" title="Agent">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6l.01 0M3 12l.01 0M3 18l.01 0"/></svg>
+        </button>
+      </nav>
+      <div class="side-bottom">
+        <button id="theme" class="nav" title="theme">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+      </div>
+    </aside>
 
-  <section class="brains" id="brains" hidden>
-    <div class="dim small">local runtimes (guest protocol — we never spawn our own):</div>
-    <div id="brain-list"></div>
-    <div class="custom">
-      <input id="c-url" placeholder="custom base url (http://127.0.0.1:11436/)" />
-      <input id="c-model" placeholder="model id" />
-      <input id="c-key" placeholder="api key (cloud)" type="password" />
+    <div class="main">
+      <header class="topbar">
+        <span class="brand">Heretic</span>
+        <span id="brain-label" class="chip soft">echo · demo</span>
+        <span class="spacer"></span>
+        <button id="scan" class="pill-btn">Scan brains</button>
+      </header>
+
+      <section id="brains" class="panel" hidden>
+        <div class="panel-title">Local runtimes · guest protocol</div>
+        <div id="brain-list" class="hitlist"></div>
+        <div class="grid3">
+          <input id="c-url" placeholder="base url (http://127.0.0.1:11436/)" />
+          <input id="c-model" placeholder="model id" />
+          <input id="c-key" placeholder="api key (cloud)" type="password" />
+        </div>
+        <label class="check"><input type="checkbox" id="council" /> council — advisor debates, brain executes</label>
+        <div class="grid3" id="advisor-row" hidden>
+          <input id="a-url" placeholder="advisor url (or echo)" />
+          <input id="a-model" placeholder="advisor model" />
+          <input id="a-key" placeholder="advisor key" type="password" />
+        </div>
+      </section>
+
+      <section id="chatview" class="view">
+        <div id="chatlog" class="chatlog">
+          <div class="empty">
+            <div class="empty-mark">◆</div>
+            <div class="empty-title">Спроси что угодно — или доверь задачу</div>
+            <div class="empty-sub">Observe сам выберет: чат или агент, глубину мышления и веб</div>
+          </div>
+        </div>
+        <div class="composer">
+          <div class="composer-box">
+            <input id="chat-input" placeholder="Спроси что угодно или дай задачу…" autocomplete="off" />
+            <button id="send" class="sendbtn" aria-label="send">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
+            </button>
+          </div>
+          <div class="composer-chips">
+            <label class="chip toggle"><input type="checkbox" id="auto" checked /><span>observe</span></label>
+            <label class="chip toggle"><input type="checkbox" id="web" /><span>web</span></label>
+            <select id="think" class="chip select">
+              <option value="low">thinking · low</option>
+              <option value="mid" selected>thinking · mid</option>
+              <option value="high">thinking · high</option>
+              <option value="max">thinking · max</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section id="agentview" class="view hidden">
+        <div class="agent-bar">
+          <select id="trust" class="chip select">
+            <option value="manual">trust · manual</option>
+            <option value="auto">trust · auto</option>
+            <option value="dry">trust · dry</option>
+          </select>
+          <span class="dim small">every step verified · skull guards active</span>
+        </div>
+        <div id="ledger" class="ledger">
+          <div class="empty"><div class="empty-mark">⚙</div><div class="empty-title">Ledger пуст</div><div class="empty-sub">Опиши задачу — шаги с вердиктами появятся здесь</div></div>
+        </div>
+        <div class="composer">
+          <div class="composer-box">
+            <input id="task" placeholder="Опиши задачу агенту…" autocomplete="off" />
+            <button id="ignite" class="sendbtn" aria-label="ignite">◆</button>
+          </div>
+        </div>
+      </section>
     </div>
-    <label class="council-toggle"><input type="checkbox" id="council" /> council — advisor debates, brain executes</label>
-    <div class="custom" id="advisor-row" hidden>
-      <input id="a-url" placeholder="advisor url (or echo)" />
-      <input id="a-model" placeholder="advisor model" />
-      <input id="a-key" placeholder="advisor key" type="password" />
-    </div>
-  </section>
-
-  <section id="chatview" class="view">
-    <main id="chatlog">
-      <div class="dim small center" style="margin-top:40vh">спроси что угодно — организм ответит</div>
-    </main>
-    <footer>
-      <select id="think" title="thinking level">
-        <option value="low">low</option>
-        <option value="mid" selected>mid</option>
-        <option value="high">high</option>
-        <option value="max">max</option>
-      </select>
-      <label class="webtoggle" title="observe decides automatically"><input type="checkbox" id="auto" checked /> observe</label>
-      <label class="webtoggle"><input type="checkbox" id="web" /> web</label>
-      <input id="chat-input" placeholder="спроси что угодно…" autocomplete="off" />
-      <button id="send">SEND</button>
-    </footer>
-  </section>
-  <section id="agentview" class="view hidden">
-  <main id="ledger">
-    <div class="dim small center" style="margin-top:40vh">the ledger is empty — give the organism a task</div>
-  </main>
-
-  <footer>
-    <span class="glyph">⚙</span>
-    <input id="task" placeholder='task… (@brain prefix routes)' autocomplete="off" />
-    <button id="ignite">IGNITE</button>
-  </footer>
-  </section>
-
+  </div>
   <script type="module" src="main.ts"></script>
 </body>
 </html>

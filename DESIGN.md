@@ -3,11 +3,12 @@
 > Heretic is the product. Anathemetron is the organism that lives inside it.
 > The face is a ledger, not a chat. Every step the agent takes is a line with a verdict.
 
-## Lineage
+## Lineage (v2 — Antigravity reference, 2026-08-18)
 
-- Spirit: DIALOGUS (terminal, monospace, living cursor)
-- Palette: Void-Shield (void-black + arterial crimson; NOT gold)
-- What it is NOT: the 34-tab golden dashboard (that is the home interface of the organism, not a public product)
+- Reference: Google Antigravity — light, clean surfaces, rounded geometry (14-16px cards, pill controls), soft shadows, sans typography (Inter), sidebar navigation, message bubbles, status pills
+- Identity kept: crimson accent (sparingly), verdict colors (ok/warn/bad + soft tints), ◆ glyphs, "ANATHEMETRON" persona
+- Mono only for step details and urls — the chrome speaks sans
+- The old void-terminal look survives as the "dark" theme (toggle in the sidebar, persisted)
 
 ## Core visual idea — Step Ledger
 
@@ -24,7 +25,7 @@ Glyphs: `⚙` step · `✓` verified · `⚠` needs approval · `✗` rejected/r
 
 Verification is the product's differentiator, so verification is what the UI shows first.
 
-## Tokens (default theme "Void")
+## Tokens (default theme "Light" · dark = legacy Void)
 
 | Token | Value | Meaning |
 |---|---|---|

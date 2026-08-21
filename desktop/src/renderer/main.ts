@@ -1,4 +1,7 @@
-// HERETIC renderer — the ledger face. Vanilla TS, zero frameworks.
+// ═══════════════════════════════════════════════════════════
+// HERETIC renderer — modern shell (Antigravity reference).
+// Vanilla TS, zero frameworks. All brain stays in main via IPC.
+// ═══════════════════════════════════════════════════════════
 
 interface StepView {
   index: number
@@ -32,64 +35,107 @@ const api = (window as unknown as { heretic: HereticApi }).heretic
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
 const ledger = $('ledger')
+const chatLog = $('chatlog')
 
 let selected: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string } = { kind: 'echo' }
 let running = false
 
-function line(html: string): HTMLDivElement {
+const scrollEnd = (el: HTMLElement): void => {
+  el.scrollTop = el.scrollHeight
+}
+
+// ── theme ────────────────────────────────────────────────
+const applyTheme = (t: string): void => {
+  document.documentElement.dataset.theme = t
+  localStorage.setItem('heretic-theme', t)
+}
+applyTheme(localStorage.getItem('heretic-theme') ?? 'light')
+$('theme').addEventListener('click', () => {
+  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark')
+})
+
+// ── navigation ───────────────────────────────────────────
+const showView = (id: 'chat' | 'agent'): void => {
+  ;($('chatview') as HTMLElement).classList.toggle('hidden', id !== 'chat')
+  ;($('agentview') as HTMLElement).classList.toggle('hidden', id !== 'agent')
+  ;($('nav-chat') as HTMLElement).classList.toggle('active', id === 'chat')
+  ;($('nav-agent') as HTMLElement).classList.toggle('active', id === 'agent')
+}
+$('nav-chat').addEventListener('click', () => showView('chat'))
+$('nav-agent').addEventListener('click', () => showView('agent'))
+
+// ── agent ledger ─────────────────────────────────────────
+function ledgerCard(html: string): HTMLDivElement {
   const div = document.createElement('div')
   div.innerHTML = html
   ledger.appendChild(div)
-  ledger.scrollTop = ledger.scrollHeight
+  scrollEnd(ledger)
   return div
 }
 
 function renderStep(s: StepView): void {
-  const g = s.verdict === 'verified' ? '✓' : s.verdict === 'awaiting' ? '⚠' : '✗'
-  const cls = s.verdict === 'verified' ? 'ok' : s.verdict === 'awaiting' ? 'warn' : 'bad'
-  const head = s.kind === 'final' ? '<span class="ok">◆</span>' : `<span class="${cls}">${g}</span>`
-  const note = s.note ? ` <span class="note">[${s.note}]</span>` : ''
-  line(`<div class="step">${head}<span class="idx">${s.index}</span>${s.title} <span class="detail">${s.detail}</span>${note}</div>`)
+  const verdict = s.verdict
+  const title = s.kind === 'final' ? 'final answer' : s.title
+  const note = s.note ? ` — ${s.note}` : ''
+  ledgerCard(`
+    <div class="step-card ${verdict}">
+      <span class="step-dot"></span>
+      <span class="step-index">${s.index}</span>
+      <span class="step-title">${title}</span>
+      <span class="step-detail">${(s.detail || '').split('\n')[0] ?? ''}${note}</span>
+      <span class="verdict-pill">${verdict}</span>
+    </div>`)
 }
 
 api.onStep(renderStep)
 api.onFinal((r) => {
   running = false
-  $('ignite').textContent = 'IGNITE'
-  if (r.ok) line(`<div class="final-line">◆ ${r.final}</div>`)
-  else line(`<div class="final-line bad">✗ ${r.final || 'session ended'}</div>`)
+  const btn = $('sendbtn-ignite') ?? $('ignite')
+  btn.textContent = '◆'
+  ledgerCard(
+    r.ok
+      ? `<div class="final-card">${r.final}</div>`
+      : `<div class="final-card bad">${r.final || 'session ended without a verified final answer'}</div>`
+  )
 })
 api.onApproval((req) => {
-  const row = line(
-    `<div class="approval"><span class="warn">⚠</span><span>${req.action}</span><span class="dim small">${req.detail}</span>
-     <button class="approve" data-a="1">approve</button><button data-a="0">deny</button></div>`
-  )
-  row.querySelectorAll('button').forEach((b) =>
-    b.addEventListener('click', () => {
-      void api.decideApproval(req.id, b.dataset.a === '1')
-      row.remove()
-    })
-  )
+  const row = ledgerCard(`
+    <div class="approval-card">
+      <span class="step-dot" style="background: var(--warn)"></span>
+      <span class="grow"><b>${req.action}</b> <span class="dim small mono">${req.detail}</span></span>
+      <button class="approve-btn">Approve</button>
+      <button class="deny-btn">Deny</button>
+    </div>`)
+  const [ok, no] = row.querySelectorAll('button')
+  ok?.addEventListener('click', () => {
+    void api.decideApproval(req.id, true)
+    row.remove()
+  })
+  no?.addEventListener('click', () => {
+    void api.decideApproval(req.id, false)
+    row.remove()
+  })
 })
 
+// ── runtime scan ─────────────────────────────────────────
 $('scan').addEventListener('click', () => {
   void (async () => {
-    $('brains').hidden = false
+    ;($('brains') as HTMLElement).hidden = false
     const list = $('brain-list')
     list.innerHTML = '<span class="dim small">scanning…</span>'
     const hits = await api.scanBrains()
     list.innerHTML = ''
     if (!hits.length) {
-      list.innerHTML = '<span class="bad small">✗ no runtimes — use custom fields or the echo demo</span>'
+      list.innerHTML = '<span class="dim small">✗ no runtimes — use the fields below or the echo demo</span>'
       return
     }
     for (const h of hits) {
       const row = document.createElement('div')
       row.className = 'hit'
-      row.innerHTML = `✓ ${h.name}<span class="url">${h.baseUrl}</span>`
+      row.innerHTML = `◉ ${h.name}<span class="url">${h.baseUrl}</span>`
       row.addEventListener('click', () => {
         selected = { kind: 'openai', url: h.baseUrl, model: h.models[0] ?? 'default' }
-        $('brain-label').textContent = `brain: ${h.name} · ${selected.model ?? ''}`
+        ;($('brain-label') as HTMLElement).textContent = `${h.name} · ${selected.model ?? ''}`
         ;($('c-url') as HTMLInputElement).value = h.baseUrl
       })
       list.appendChild(row)
@@ -99,9 +145,10 @@ $('scan').addEventListener('click', () => {
 
 const councilBox = $('council') as HTMLInputElement
 councilBox.addEventListener('change', () => {
-  ($('advisor-row') as HTMLElement).hidden = !councilBox.checked
+  ;($('advisor-row') as HTMLElement).hidden = !councilBox.checked
 })
 
+// ── agent ignition ───────────────────────────────────────
 $('ignite').addEventListener('click', () => {
   if (running) return
   const task = ($('task') as HTMLInputElement).value.trim()
@@ -113,10 +160,8 @@ $('ignite').addEventListener('click', () => {
     const key = ($('c-key') as HTMLInputElement).value.trim()
     selected = { kind: 'openai', url, model: model || 'default', key: key || undefined }
   }
-  if (selected.kind === 'echo' && !$('brains').hidden) {
-    // echo only if explicitly nothing chosen
-  }
-  $('brain-label').textContent = `brain: ${selected.kind === 'echo' ? 'echo (demo)' : selected.model ?? 'custom'}`
+  ;($('brain-label') as HTMLElement).textContent =
+    selected.kind === 'echo' ? 'echo · demo' : `${selected.model ?? 'custom'}`
 
   let advisor: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string } | undefined
   if (councilBox.checked) {
@@ -133,9 +178,11 @@ $('ignite').addEventListener('click', () => {
   }
 
   running = true
-  $('ignite').textContent = advisor ? 'COUNCIL' : 'RUNNING'
+  ;($('ignite') as HTMLElement).textContent = advisor ? '⧉' : '···'
   ledger.innerHTML = ''
-  line(`<div class="step dim">◆ session start · trust=${($('trust') as HTMLSelectElement).value}</div>`)
+  ledgerCard(
+    `<div class="status-chip">session start · trust=${($('trust') as HTMLSelectElement).value}${advisor ? ' · council' : ''}</div>`
+  )
   void api.runSession(task, selected, ($('trust') as HTMLSelectElement).value, advisor)
 })
 
@@ -143,28 +190,41 @@ $('task').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') $('ignite').click()
 })
 
-// ── tabs ──
-const showView = (id: 'chat' | 'agent'): void => {
-  ;($('chatview') as HTMLElement).classList.toggle('hidden', id !== 'chat')
-  ;($('agentview') as HTMLElement).classList.toggle('hidden', id !== 'agent')
-  ;($('tab-chat') as HTMLElement).classList.toggle('active', id === 'chat')
-  ;($('tab-agent') as HTMLElement).classList.toggle('active', id === 'agent')
-}
-$('tab-chat').addEventListener('click', () => showView('chat'))
-$('tab-agent').addEventListener('click', () => showView('agent'))
-
-// ── chat ──
-const chatLog = $('chatlog')
+// ── chat (AUTO surface) ──────────────────────────────────
 const chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
 let chatBusy = false
 
-const chatLine = (cls: string, text: string): HTMLDivElement => {
+const chatNode = (el: HTMLElement): HTMLElement => {
+  chatLog.appendChild(el)
+  scrollEnd(chatLog)
+  return el
+}
+
+const statusChip = (text: string, observe = false): void => {
   const div = document.createElement('div')
-  div.className = cls
+  div.className = `status-chip${observe ? ' observe' : ''}`
   div.textContent = text
-  chatLog.appendChild(div)
-  chatLog.scrollTop = chatLog.scrollHeight
-  return div
+  chatNode(div)
+}
+
+const userBubble = (text: string): void => {
+  const div = document.createElement('div')
+  div.className = 'msg-user'
+  div.textContent = text
+  chatNode(div)
+}
+
+const aiMessage = (): HTMLDivElement => {
+  const wrap = document.createElement('div')
+  wrap.className = 'msg-ai'
+  wrap.innerHTML = `
+    <div class="avatar">◆</div>
+    <div class="msg-body">
+      <div class="msg-name">ANATHEMETRON</div>
+      <div class="msg-content"></div>
+    </div>`
+  chatNode(wrap)
+  return wrap.querySelector('.msg-content') as HTMLDivElement
 }
 
 let streamTarget: HTMLDivElement | null = null
@@ -173,9 +233,13 @@ api.onChatDelta((d) => {
   if (!streamTarget) return
   streamText += d
   streamTarget.textContent = streamText
-  chatLog.scrollTop = chatLog.scrollHeight
+  scrollEnd(chatLog)
 })
-api.onChatStatus((line) => chatLine('chat-status', `⚙ ${line}`))
+api.onChatStatus((line) => {
+  const observe = line.startsWith('observe:')
+  const glyph = line.startsWith('observe:') ? '⚙' : line.startsWith('✓') || line.startsWith('✗') ? '' : '·'
+  statusChip(`${glyph ? glyph + ' ' : ''}${line}`, observe)
+})
 
 const currentBrain = (): { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string } => {
   const url = ($('c-url') as HTMLInputElement).value.trim()
@@ -196,13 +260,14 @@ const sendChat = (): void => {
   const q = input.value.trim()
   if (!q) return
   input.value = ''
-  if (!chatLog.querySelector('.msg-user')) chatLog.innerHTML = ''
-  chatLine('msg-user', `> ${q}`)
+  const emptyHero = chatLog.querySelector('.empty')
+  if (emptyHero) emptyHero.remove()
+  userBubble(q)
   chatHistory.push({ role: 'user', content: q })
-  streamTarget = chatLine('msg-ai', '')
+  streamTarget = aiMessage()
   streamText = ''
   chatBusy = true
-  ;($('send') as HTMLElement).textContent = '···'
+  ;($('send') as HTMLButtonElement).disabled = true
   void api
     .autoSend({
       history: [...chatHistory],
@@ -212,13 +277,24 @@ const sendChat = (): void => {
     })
     .then((r) => {
       chatBusy = false
-      ;($('send') as HTMLElement).textContent = 'SEND'
+      ;($('send') as HTMLButtonElement).disabled = false
       if (r.error) {
         streamTarget!.textContent = `✗ ${r.error}`
+        streamTarget = null
         return
       }
-      if (!streamText && r.answer) streamTarget!.textContent = r.kind === 'agent' ? `⚙ ${r.ok ? 'session complete' : 'no verified final'}\n\n${r.answer}` : r.answer
-      if (r.sources.length) chatLine('chat-status', r.sources.map((s, i) => `[${i + 1}] ${s.title} — ${s.url}`).join('\n'))
+      if (!streamText && r.answer) {
+        streamTarget!.textContent =
+          r.kind === 'agent' ? `${r.ok ? '⚙ session complete' : '✗ no verified final answer'}\n\n${r.answer}` : r.answer
+      }
+      if (r.sources.length) {
+        const box = document.createElement('div')
+        box.className = 'sources'
+        box.innerHTML = r.sources
+          .map((s, i) => `<div class="source-link">[${i + 1}] <b>${s.title}</b> — ${s.url}</div>`)
+          .join('')
+        chatNode(box)
+      }
       chatHistory.push({ role: 'assistant', content: r.answer })
       streamTarget = null
     })

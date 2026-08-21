@@ -56,8 +56,8 @@ function createWindow(): void {
   win = new BrowserWindow({
     width: 980,
     height: 720,
-    backgroundColor: '#050505',
-    title: 'HERETIC',
+    backgroundColor: '#f6f7f9',
+    title: 'Heretic',
     webPreferences: {
       sandbox: true,
       contextIsolation: true,
