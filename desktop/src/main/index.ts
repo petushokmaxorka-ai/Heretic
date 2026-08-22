@@ -51,6 +51,7 @@ import { deepTools } from '../../../src/tools/deep'
 import { swissTools } from '../../../src/tools/swiss'
 import { ttsTools } from '../../../src/tools/tts'
 import { specialistTools } from '../../../src/tools/specialist'
+import { operatorTools } from '../../../src/tools/operator'
 import { connectMcp, stopFleet, type McpFleet } from '../../../src/mcp/manager'
 import { discoverSearxng } from '../../../src/discovery'
 
@@ -163,6 +164,7 @@ function buildTools(): import('../../../src/protocol/types').Tool[] {
     ...swissTools,
     ...ttsTools,
     ...specialistTools,
+    ...operatorTools,
     ...(mcpFleet?.tools ?? []),
     createBrowserTool(() => win),
     ...desktopOrgans()

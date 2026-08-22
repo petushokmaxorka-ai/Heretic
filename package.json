@@ -1,6 +1,6 @@
 {
   "name": "heretic",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "HERETIC \u2014 local-first agentic desktop engine. Small local brain + strong verification + cloud escalation. Anathemetron lives inside.",
   "type": "module",
   "license": "MIT",
@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test out/test/sandbox.test.js out/test/agent.test.js out/test/discovery.test.js out/test/url-guard.test.js out/test/council.test.js out/test/vault.test.js out/test/skull.test.js out/test/chat.test.js out/test/observe.test.js out/test/tools-pack.test.js out/test/pack1.test.js out/test/pack2.test.js out/test/pack3.test.js out/test/pack5.test.js out/test/pack7.test.js out/test/pack8.test.js out/test/pack9.test.js out/test/pack10.test.js out/test/pack11.test.js out/test/pack12.test.js out/test/pack13.test.js out/test/pack14.test.js out/test/pack15.test.js",
+    "test": "tsc -p tsconfig.json && node --test out/test/sandbox.test.js out/test/agent.test.js out/test/discovery.test.js out/test/url-guard.test.js out/test/council.test.js out/test/vault.test.js out/test/skull.test.js out/test/chat.test.js out/test/observe.test.js out/test/tools-pack.test.js out/test/pack1.test.js out/test/pack2.test.js out/test/pack3.test.js out/test/pack5.test.js out/test/pack7.test.js out/test/pack8.test.js out/test/pack9.test.js out/test/pack10.test.js out/test/pack11.test.js out/test/pack12.test.js out/test/pack13.test.js out/test/pack14.test.js out/test/pack15.test.js out/test/pack16.test.js",
     "cli": "node out/cli.js"
   },
   "engines": {
