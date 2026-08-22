@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="mechanicus">
+<html lang="ru" data-theme="mechanicus">
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:" />
@@ -11,15 +11,15 @@
     <aside class="side">
       <div class="logo" title="Heretic — Anathemetron lives inside">◆</div>
       <nav class="side-nav">
-        <button id="nav-chat" class="nav active" title="Chat">
+        <button id="nav-chat" class="nav active" title="Чат">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         </button>
-        <button id="nav-agent" class="nav" title="Agent">
+        <button id="nav-agent" class="nav" title="Агент">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6l.01 0M3 12l.01 0M3 18l.01 0"/></svg>
         </button>
       </nav>
       <div class="side-bottom">
-        <button id="theme" class="nav" title="theme">
+        <button id="theme" class="nav" title="тема: mechanicus / light / dark">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         </button>
       </div>
@@ -28,66 +28,48 @@
     <div class="main">
       <header class="topbar">
         <span class="brand">Heretic</span>
-        <span id="cardia" class="chip soft hidden" title="cardia — the organism's heartbeat (read-only)">♥</span>
-        <span id="brain-label" class="chip soft">echo · demo</span>
+        <span id="cardia" class="chip soft hidden" title="cardia — сердцебиение организма (read-only)">♥</span>
+        <span id="brain-label" class="chip soft"><span class="conn-dot off" id="conn-dot"></span><span id="brain-text">подключение…</span></span>
         <span class="spacer"></span>
-        <select id="session" class="chip select" title="sessions"></select>
-        <button id="new-chat" class="pill-btn">New</button>
-        <button id="persona-btn" class="pill-btn" title="persona / custom instructions">Persona</button>
-        <button id="scan" class="pill-btn">Scan brains</button>
+        <select id="session" class="chip select" title="сессии (двойной клик — переименовать)"></select>
+        <button id="session-del" class="pill-btn subtle" title="удалить сессию">✕</button>
+        <button id="new-chat" class="pill-btn">Новая</button>
+        <button id="settings-btn" class="pill-btn" title="настройки: мозги, codex, workspace, совет">⚙ Настройки</button>
       </header>
-
-      <section id="brains" class="panel" hidden>
-        <div class="panel-title">Local runtimes · guest protocol</div>
-        <div id="brain-list" class="hitlist"></div>
-        <div class="grid3">
-          <input id="c-url" placeholder="base url (http://127.0.0.1:11436/)" />
-          <input id="c-model" placeholder="model id" />
-          <input id="c-key" placeholder="api key (cloud)" type="password" />
-        </div>
-        <div class="grid3">
-          <input id="ws-path" placeholder="workspace: persistent agent folder" style="grid-column: span 2;" />
-          <button id="ws-pick" class="pill-btn">Browse</button>
-        </div>
-        <label class="check"><input type="checkbox" id="council" /> council — advisor debates, brain executes</label>
-        <div class="grid3">
-          <input id="cx-url" placeholder="codex brain url (Codex Imperium)" />
-          <input id="cx-model" placeholder="codex model (e.g. Qwable-Genesis)" />
-        </div>
-        <div class="grid3" id="advisor-row" hidden>
-          <input id="a-url" placeholder="advisor url (or echo)" />
-          <input id="a-model" placeholder="advisor model (comma-separated = many)" />
-          <input id="a-key" placeholder="advisor key" type="password" />
-        </div>
-      </section>
 
       <section id="chatview" class="view">
         <div id="chatlog" class="chatlog">
-          <div class="empty">
+          <div class="empty" id="empty-hero">
             <div class="empty-mark">◆</div>
-            <div class="empty-title">Спроси что угодно — или доверь задачу</div>
-            <div class="empty-sub">Observe сам выберет: чат или агент, глубину мышления и веб</div>
+            <div class="empty-title">Я тебя слышу</div>
+            <div class="empty-sub">Anathemetron на связи. Observe сам выберет — чат или агент, глубину мышления и веб.</div>
+            <div class="suggestions" id="suggestions">
+              <button class="suggest" data-q="Что ты умеешь? Расскажи коротко.">Что ты умеешь?</button>
+              <button class="suggest" data-q="Объясни, как работает квантовая запутанность — просто.">Объясни что-то сложное</button>
+              <button class="suggest" data-q="какая сегодня погода в Москве?">Погода (с вебом)</button>
+              <button class="suggest" data-q="создай файл plan.md с планом запуска проекта на неделю">Дай задачу агенту</button>
+            </div>
           </div>
         </div>
         <div class="composer">
           <div class="composer-box">
-            <button id="attach" class="iconbtn" title="attach images">＋</button>
-            <button id="mic" class="iconbtn hidden" title="voice input (whisper)">●</button>
+            <button id="attach" class="iconbtn" title="прикрепить картинки">＋</button>
+            <button id="mic" class="iconbtn hidden" title="голосовой ввод (whisper)">●</button>
             <div id="attach-preview" class="attach-preview"></div>
             <input id="chat-input" placeholder="Спроси что угодно или дай задачу…" autocomplete="off" />
-            <button id="send" class="sendbtn" aria-label="send">
+            <button id="send" class="sendbtn" aria-label="отправить">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
             </button>
           </div>
           <div class="composer-chips">
-            <select id="model-chip" class="chip select" title="model (◉ resident)"></select>
+            <select id="model-chip" class="chip select" title="модель (◉ резидент)"></select>
             <label class="chip toggle"><input type="checkbox" id="auto" checked /><span>observe</span></label>
             <label class="chip toggle"><input type="checkbox" id="web" /><span>web</span></label>
             <select id="think" class="chip select">
-              <option value="low">thinking · low</option>
-              <option value="mid" selected>thinking · mid</option>
-              <option value="high">thinking · high</option>
-              <option value="max">thinking · max</option>
+              <option value="low">мышление · low</option>
+              <option value="mid" selected>мышление · mid</option>
+              <option value="high">мышление · high</option>
+              <option value="max">мышление · max</option>
             </select>
           </div>
         </div>
@@ -96,12 +78,12 @@
       <section id="agentview" class="view hidden">
         <div class="agent-bar">
           <select id="trust" class="chip select">
-            <option value="manual">trust · manual</option>
-            <option value="edits">trust · edits (diff review)</option>
-            <option value="auto">trust · auto</option>
-            <option value="dry">trust · dry</option>
+            <option value="manual">доверие · manual</option>
+            <option value="edits" selected>доверие · edits (дифф перед записью)</option>
+            <option value="auto">доверие · auto</option>
+            <option value="dry">доверие · dry (репетиция)</option>
           </select>
-          <span class="dim small">every step verified · skull guards active</span>
+          <span class="dim small">каждый шаг проверен · skull на страже</span>
         </div>
         <div id="ledger" class="ledger">
           <div class="empty"><div class="empty-mark">⚙</div><div class="empty-title">Ledger пуст</div><div class="empty-sub">Опиши задачу — шаги с вердиктами появятся здесь</div></div>
@@ -109,19 +91,65 @@
         <div class="composer">
           <div class="composer-box">
             <input id="task" placeholder="Опиши задачу агенту…" autocomplete="off" />
-            <button id="ignite" class="sendbtn" aria-label="ignite">◆</button>
+            <button id="ignite" class="sendbtn" aria-label="зажечь">◆</button>
           </div>
         </div>
       </section>
     </div>
   </div>
+
   <div id="persona-modal" class="modal hidden">
     <div class="modal-card">
-      <div class="panel-title">Persona — custom instructions</div>
+      <div class="panel-title">Персона — как со мной говорить</div>
       <textarea id="persona-text" rows="6" placeholder="Говори по-русски. Обращайся ко мне на «ты». Люблю короткие ответы с примерами кода…"></textarea>
       <div class="modal-actions">
-        <button id="persona-save" class="approve-btn">Save</button>
-        <button id="persona-close" class="deny-btn">Close</button>
+        <button id="persona-save" class="approve-btn">Сохранить</button>
+        <button id="persona-close" class="deny-btn">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-card wide">
+      <div class="panel-title">Настройки</div>
+
+      <div class="settings-section">
+        <div class="settings-label">Мозг · повседневный</div>
+        <div id="brain-list" class="hitlist"></div>
+        <div class="grid3">
+          <input id="c-url" placeholder="base url (http://127.0.0.1:11436/)" />
+          <input id="c-model" placeholder="model id" />
+          <input id="c-key" placeholder="api key (облако)" type="password" />
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-label">Codex-мозг · для агентных задач (Codex Imperium)</div>
+        <div class="grid3">
+          <input id="cx-url" placeholder="codex brain url" />
+          <input id="cx-model" placeholder="модель (напр. Qwable-Genesis)" />
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-label">Workspace · папка задач агента (персистентная)</div>
+        <div class="grid3">
+          <input id="ws-path" placeholder="workspace: результаты задач не исчезнут" style="grid-column: span 2;" />
+          <button id="ws-pick" class="pill-btn">Выбрать…</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <label class="check"><input type="checkbox" id="council" /> совет — советники спорят, мозг исполняет</label>
+        <div class="grid3" id="advisor-row" hidden>
+          <input id="a-url" placeholder="advisor url (или echo)" />
+          <input id="a-model" placeholder="модели через запятую = много советников" />
+          <input id="a-key" placeholder="advisor key" type="password" />
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="settings-close" class="approve-btn">Готово</button>
       </div>
     </div>
   </div>

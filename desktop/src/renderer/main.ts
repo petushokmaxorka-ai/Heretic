@@ -61,8 +61,73 @@ const chatLog = $('chatlog')
 let selected: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string } = { kind: 'echo' }
 let running = false
 
+const setBrainStatus = (text: string, connected: boolean): void => {
+  ;($('brain-text') as HTMLElement).textContent = text
+  ;($('conn-dot') as HTMLElement).className = `conn-dot ${connected ? 'on' : 'off'}`
+}
+
 const scrollEnd = (el: HTMLElement): void => {
   el.scrollTop = el.scrollHeight
+}
+
+// ── suggestion chips ─────────────────────────────────────
+document.querySelectorAll<HTMLButtonElement>('.suggest').forEach((b) => {
+  b.addEventListener('click', () => {
+    const input = $('chat-input') as HTMLInputElement
+    input.value = b.dataset.q ?? ''
+    input.focus()
+  })
+})
+
+// ── settings modal ───────────────────────────────────────
+$('settings-btn').addEventListener('click', () => {
+  ;($('settings-modal') as HTMLElement).classList.remove('hidden')
+  runScan()
+})
+$('settings-close').addEventListener('click', () => {
+  persistBrains()
+  ;($('settings-modal') as HTMLElement).classList.add('hidden')
+  refreshBrainStatus()
+})
+$('council').addEventListener('change', () => {
+  ;($('advisor-row') as HTMLElement).hidden = !($('council') as HTMLInputElement).checked
+})
+
+const refreshBrainStatus = (): void => {
+  const url = ($('c-url') as HTMLInputElement).value.trim()
+  const model = ($('model-chip') as HTMLSelectElement).value || ($('c-model') as HTMLInputElement).value.trim()
+  const isEcho = !url
+  setBrainStatus(isEcho ? 'echo · демо' : model || 'custom', !isEcho)
+}
+
+// auto-connect on boot: saved config wins, else discover
+const autoConnect = async (): Promise<void> => {
+  const saved = await api.loadBrains()
+  if (saved.ok && saved.url) {
+    refreshBrainStatus()
+    return
+  }
+  try {
+    const hits = await api.scanBrains()
+    const h = hits[0]
+    if (!h) {
+      setBrainStatus('нет мозгов — echo демо', false)
+      return
+    }
+    const res = h.residents ?? []
+    const model = h.models.find((mm) => res.includes(mm)) ?? h.models[0] ?? 'default'
+    ;($('c-url') as HTMLInputElement).value = h.baseUrl
+    ;($('c-model') as HTMLInputElement).value = model
+    selected = { kind: 'openai', url: h.baseUrl, model }
+    setBrainStatus(`${model} ${res.includes(model) ? '◉' : ''}`.trim(), true)
+    const chip = $('model-chip') as HTMLSelectElement
+    chip.innerHTML = h.models
+      .map((mm) => `<option value="${mm}">${res.includes(mm) ? '◉' : '○'} ${mm}</option>`)
+      .join('')
+    chip.value = model
+  } catch {
+    setBrainStatus('echo · демо', false)
+  }
 }
 
 // ── theme ────────────────────────────────────────────────
@@ -167,9 +232,8 @@ api.onApproval((req) => {
 })
 
 // ── runtime scan ─────────────────────────────────────────
-$('scan').addEventListener('click', () => {
+const runScan = (): void => {
   void (async () => {
-    ;($('brains') as HTMLElement).hidden = false
     const list = $('brain-list')
     list.innerHTML = '<span class="dim small">scanning…</span>'
     const hits = await api.scanBrains()
@@ -193,8 +257,9 @@ $('scan').addEventListener('click', () => {
           if (!swap) return
         }
         selected = { kind: 'openai', url: h.baseUrl, model: chosen }
-        ;($('brain-label') as HTMLElement).textContent = `${h.name} · ${selected.model ?? ''}${h.residents?.includes(selected.model ?? '') ? ' ◉' : ''}`
         ;($('c-url') as HTMLInputElement).value = h.baseUrl
+        ;($('c-model') as HTMLInputElement).value = chosen
+        refreshBrainStatus()
       })
       list.appendChild(row)
       const chip = $('model-chip') as HTMLSelectElement
@@ -205,7 +270,7 @@ $('scan').addEventListener('click', () => {
       if (firstRes) chip.value = firstRes
     }
   })()
-})
+}
 $('model-chip').addEventListener('change', () => {
   const chip = $('model-chip') as HTMLSelectElement
   if (!chip.value) return
@@ -213,7 +278,7 @@ $('model-chip').addEventListener('change', () => {
   if (url) {
     selected = { kind: 'openai', url, model: chip.value }
     ;($('c-model') as HTMLInputElement).value = chip.value
-    ;($('brain-label') as HTMLElement).textContent = chip.value
+    refreshBrainStatus()
   }
 })
 
@@ -662,18 +727,6 @@ const persistCurrentSession = (): void => {
   else all.push(entry)
   saveSessions(all)
   renderSessionSelect()
-
-// restore persisted brain config on boot
-void api.loadBrains().then((b) => {
-  if (!b.ok || !b.url) return
-  ;($('c-url') as HTMLInputElement).value = b.url
-  ;($('c-model') as HTMLInputElement).value = b.model
-  ;($('c-key') as HTMLInputElement).value = b.key
-  if (b.codexUrl) ($('cx-url') as HTMLInputElement).value = b.codexUrl
-  if (b.codexModel) ($('cx-model') as HTMLInputElement).value = b.codexModel
-  if (b.workspace) ($('ws-path') as HTMLInputElement).value = b.workspace
-  ;($('brain-label') as HTMLElement).textContent = `${b.model || 'custom'}`
-})
 }
 
 const restoreSession = (id: string): void => {
@@ -704,11 +757,7 @@ $('session').addEventListener('dblclick', () => {
     renderSessionSelect()
   }
 })
-const delBtn = document.createElement('button')
-delBtn.className = 'pill-btn'
-delBtn.textContent = '✕'
-delBtn.title = 'delete session'
-delBtn.addEventListener('click', () => {
+$('session-del').addEventListener('click', () => {
   const id = ($('session') as HTMLSelectElement).value
   if (!id) return
   saveSessions(loadSessions().filter((s) => s.id !== id))
@@ -719,7 +768,6 @@ delBtn.addEventListener('click', () => {
   }
   renderSessionSelect()
 })
-$('session').after(delBtn)
 $('session').addEventListener('change', () => {
   const id = ($('session') as HTMLSelectElement).value
   if (id) restoreSession(id)
@@ -729,30 +777,24 @@ $('new-chat').addEventListener('click', () => {
   chatHistory.length = 0
   chatLog.innerHTML = '<div class="empty"><div class="empty-mark">◆</div><div class="empty-title">Новая сессия</div><div class="empty-sub">Observe сам выберет: чат или агент</div></div>'
   renderSessionSelect()
+})
 
-// restore persisted brain config on boot
-void api.loadBrains().then((b) => {
-  if (!b.ok || !b.url) return
-  ;($('c-url') as HTMLInputElement).value = b.url
-  ;($('c-model') as HTMLInputElement).value = b.model
-  ;($('c-key') as HTMLInputElement).value = b.key
-  if (b.codexUrl) ($('cx-url') as HTMLInputElement).value = b.codexUrl
-  if (b.codexModel) ($('cx-model') as HTMLInputElement).value = b.codexModel
-  ;($('brain-label') as HTMLElement).textContent = `${b.model || 'custom'}`
-})
-})
 renderSessionSelect()
 
-// restore persisted brain config on boot
-void api.loadBrains().then((b) => {
-  if (!b.ok || !b.url) return
-  ;($('c-url') as HTMLInputElement).value = b.url
-  ;($('c-model') as HTMLInputElement).value = b.model
-  ;($('c-key') as HTMLInputElement).value = b.key
-  if (b.codexUrl) ($('cx-url') as HTMLInputElement).value = b.codexUrl
-  if (b.codexModel) ($('cx-model') as HTMLInputElement).value = b.codexModel
-  ;($('brain-label') as HTMLElement).textContent = `${b.model || 'custom'}`
-})
+// ── boot: restore config, then auto-connect the organism ──
+void (async () => {
+  const b = await api.loadBrains()
+  if (b.ok && b.url) {
+    ;($('c-url') as HTMLInputElement).value = b.url
+    ;($('c-model') as HTMLInputElement).value = b.model
+    ;($('c-key') as HTMLInputElement).value = b.key
+    if (b.codexUrl) ($('cx-url') as HTMLInputElement).value = b.codexUrl
+    if (b.codexModel) ($('cx-model') as HTMLInputElement).value = b.codexModel
+    if (b.workspace) ($('ws-path') as HTMLInputElement).value = b.workspace
+  }
+  refreshBrainStatus()
+  await autoConnect()
+})()
 
 const persistBrains = (): void => {
   void api.saveBrains({
