@@ -38,6 +38,7 @@ import { organExtraTools } from './tools/organs-extra.js'
 import { deepTools } from './tools/deep.js'
 import { swissTools } from './tools/swiss.js'
 import { ttsTools } from './tools/tts.js'
+import { specialistTools } from './tools/specialist.js'
 import { askUser, makeSubtaskTool } from './tools/agent-extra.js'
 import { isThinkingLevel, type ThinkingLevel } from './thinking.js'
 import type { ApprovalPolicy, Brain, Step } from './protocol/types.js'
@@ -206,6 +207,7 @@ async function main(): Promise<number> {
   ...deepTools,
   ...swissTools,
   ...ttsTools,
+  ...specialistTools,
   askUser
 ])
 
