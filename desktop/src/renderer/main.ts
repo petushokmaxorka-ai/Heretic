@@ -31,6 +31,10 @@ interface VoiceApi {
   pickDocs(): Promise<{ ok: boolean; copied: string[] }>
   saveNote(title: string, text: string): Promise<{ ok: boolean; path: string }>
   addTask(text: string): Promise<{ ok: boolean; path: string }>
+  exportChat(history: { role: string; content: string }[]): Promise<{ ok: boolean; path: string }>
+  brainPing(cfg: { url?: string; model?: string; key?: string }): Promise<{ ok: boolean; ms: number; answer: string }>
+  saveMcp(json: string): Promise<{ ok: boolean; tools: number; errors: string[] }>
+  loadMcpConfig(): Promise<string>
 }
 
 interface PersonaApi extends VoiceApi {
@@ -188,6 +192,46 @@ $('create-task').addEventListener('click', () => {
 })
 
 // ── DOC button ───────────────────────────────────────────
+$('export-md').addEventListener('click', () => {
+  if (!chatHistory.length) { statusChip('✗ диалог пуст'); return }
+  void api.exportChat(chatHistory.map((x) => ({ role: x.role, content: x.content }))).then((r) =>
+    statusChip(r.ok ? `◆ диалог сохранён: ${r.path}` : '✗ отменено')
+  )
+})
+$('brain-ping').addEventListener('click', () => {
+  const btn = $('brain-ping') as HTMLButtonElement
+  btn.textContent = '◆ ПРОВЕРЯЮ…'
+  void api
+    .brainPing({
+      url: ($('c-url') as HTMLInputElement).value.trim() || undefined,
+      model: ($('c-model') as HTMLInputElement).value.trim() || undefined,
+      key: ($('c-key') as HTMLInputElement).value.trim() || undefined
+    })
+    .then((r) => {
+      btn.textContent = '◆ ПРОВЕРКА СВЯЗИ'
+      statusChip(r.ok ? `✓ связь есть: ${r.ms}мс · «${r.answer}»` : `✗ ${r.answer}`)
+    })
+})
+void (async () => {
+  try {
+    const cfg = await api.loadMcpConfig()
+    const box = $('mcp-json') as HTMLTextAreaElement | null
+    if (box && cfg) box.value = cfg
+  } catch {
+    // first run
+  }
+})()
+$('mcp-save').addEventListener('click', () => {
+  const json = ($('mcp-json') as HTMLTextAreaElement).value
+  void api.saveMcp(json).then((r) =>
+    statusChip(
+      r.ok
+        ? `◆ MCP подключён: ${r.tools} инструментов${r.errors.length ? ' · ошибки: ' + r.errors.join('; ') : ''}`
+        : `✗ MCP: ${r.errors.join('; ')}`
+    )
+  )
+})
+
 $('doc').addEventListener('click', () => {
   void api.pickDocs().then((r) => {
     if (r.ok && r.copied.length) {
@@ -880,7 +924,8 @@ let currentSessionId: string | null = null
 const renderSessionSelect = (): void => {
   const box = $('session-list')
   if (!box) return
-  const all = [...loadSessions()].reverse()
+  const filter = ($('session-filter') as HTMLInputElement)?.value.trim().toLowerCase() ?? ''
+  const all = [...loadSessions()].reverse().filter((x) => !filter || x.name.toLowerCase().includes(filter))
   box.innerHTML = ''
   if (!all.length) {
     box.innerHTML = '<div class="session-item" style="cursor:default;color:var(--dm-muted);">— нет записанных диалогов —</div>'
@@ -919,6 +964,8 @@ const renderSessionSelect = (): void => {
     box.appendChild(item)
   }
 }
+
+$('session-filter').addEventListener('input', () => renderSessionSelect())
 
 const persistCurrentSession = (): void => {
   if (!chatHistory.length) return

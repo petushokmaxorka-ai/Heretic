@@ -41,6 +41,8 @@ import { llamaStatusTool, getResidents, pickResident } from '../../../src/tools/
 import { memoriaQuery, servicesHealth } from '../../../src/tools/organs'
 import { gitTools } from '../../../src/tools/git'
 import { sysInfo } from '../../../src/tools/sys'
+import { utilTools } from '../../../src/tools/util'
+import { connectMcp, stopFleet, type McpFleet } from '../../../src/mcp/manager'
 import { discoverSearxng } from '../../../src/discovery'
 
 // voice: the host whisper function (read-only usage — we spawn, never modify)
@@ -52,6 +54,17 @@ const VAULT_ROOT = join(app.getPath('userData'), 'vault')
 
 let win: BrowserWindow | null = null
 let searxngBase: string | null | undefined
+let mcpFleet: McpFleet | null = null
+
+const mcpConfigPath = (): string => join(app.getPath('userData'), 'mcp.json')
+
+async function startMcp(): Promise<void> {
+  stopFleet(mcpFleet)
+  mcpFleet = await connectMcp(mcpConfigPath())
+  const n = mcpFleet.tools.length
+  console.log(`[heretic] mcp: ${n} tools${mcpFleet.errors.length ? ', errors: ' + mcpFleet.errors.join('; ') : ''}`)
+  if (win && !win.isDestroyed()) win.webContents.send('chat:status', { line: `◆ MCP: ${n} инструментов` })
+}
 let sessionAbort: AbortController | null = null
 let heartLabel = ''
 let chatAbort: AbortController | null = null
@@ -131,6 +144,8 @@ function buildTools(): import('../../../src/protocol/types').Tool[] {
     servicesHealth,
     ...gitTools,
     sysInfo,
+    ...utilTools,
+    ...(mcpFleet?.tools ?? []),
     createBrowserTool(() => win),
     ...desktopOrgans()
   ])
@@ -289,6 +304,14 @@ app.commandLine.appendSwitch('ozone-platform-hint', 'auto')
 
 app.whenReady().then(() => {
   mkdirSync(VAULT_ROOT, { recursive: true })
+  writeFileSync(
+    mcpConfigPath(),
+    fsExists(mcpConfigPath())
+      ? readFileSync(mcpConfigPath(), 'utf-8')
+      : JSON.stringify({ servers: {} }, null, 2),
+    'utf-8'
+  )
+  void startMcp()
   createWindow()
   // CI e2e smoke: window up + 4s of life = exit 0
   if (process.argv.includes('--smoke')) {
@@ -388,6 +411,17 @@ app.whenReady().then(() => {
       .join('\n---\n\n')
     writeFileSync(r.filePath, `# HERETIC · диалог\n\n${md}\n`, 'utf-8')
     return { ok: true, path: r.filePath }
+  })
+
+  ipcMain.handle(IPC.MCP_SAVE, async (_e, json: string) => {
+    try {
+      JSON.parse(json) as unknown
+      writeFileSync(mcpConfigPath(), json, 'utf-8')
+      await startMcp()
+      return { ok: true, tools: mcpFleet?.tools.length ?? 0, errors: mcpFleet?.errors ?? [] }
+    } catch (e) {
+      return { ok: false, tools: 0, errors: [(e as Error).message] }
+    }
   })
 
   ipcMain.handle(IPC.BRAIN_PING, async (_e, cfg: { url?: string; model?: string; key?: string }) => {

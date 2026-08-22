@@ -27,6 +27,7 @@ export const IPC = {
   TASK_ADD: 'task:add',
   CHAT_EXPORT: 'chat:export',
   BRAIN_PING: 'brain:ping',
+  MCP_SAVE: 'mcp:save',
   CHAT_DELTA: 'chat:delta',
   CHAT_STATUS: 'chat:status'
 } as const
