@@ -433,6 +433,19 @@ app.whenReady().then(() => {
     return { ok: true, path: r.filePath }
   })
 
+  const pendingAsks = new Map<number, (answer: string) => void>()
+  ipcMain.handle(IPC.ASK_USER, (_e, { question, options }: { question: string; options?: string[] }) => {
+    return new Promise<string>((resolve) => {
+      const id = Date.now() + Math.random()
+      pendingAsks.set(id, resolve)
+      send(IPC.ASK_USER, { id, question, options })
+    })
+  })
+  ipcMain.handle(IPC.ASK_ANSWER, (_e, { id, answer }: { id: number; answer: string }) => {
+    pendingAsks.get(id)?.(answer)
+    pendingAsks.delete(id)
+  })
+
   ipcMain.handle(IPC.MCP_SAVE, async (_e, json: string) => {
     try {
       JSON.parse(json) as unknown
@@ -613,6 +626,11 @@ app.whenReady().then(() => {
           brain: buildBrain(codexBrain),
           persona: payload.persona,
           vaultRoot: VAULT_ROOT,
+          ask: (question, options) => new Promise<string>((resolve) => {
+            const id = Date.now() + Math.random()
+            pendingAsks.set(id, resolve)
+            send(IPC.ASK_USER, { id, question, options })
+          }),
           onThinking: (t) => send(IPC.CHAT_STATUS, { line: '◈ ' + t.slice(-180) }),
           tools: buildTools(),
           sandbox: new Sandbox(join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)),

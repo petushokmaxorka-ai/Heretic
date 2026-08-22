@@ -58,11 +58,61 @@ interface HereticApi extends ChatApi, StopApi {
   onStep(cb: (s: StepView) => void): () => void
   onFinal(cb: (r: { ok: boolean; final: string }) => void): () => void
   onApproval(cb: (req: { id: number; action: string; detail: string; diff?: { path: string; before: string; after: string } }) => void): () => void
+  askUser(question: string, options?: string[]): Promise<string>
+  answerUser(id: number, answer: string): Promise<void>
+  onAskUser(cb: (req: { id: number; question: string; options?: string[] }) => void): () => void
 }
 
 const api = (window as unknown as { heretic: HereticApi }).heretic
 
-const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
+// Wrap the entire module body in a try-catch so initialization errors
+// don't silently kill the app
+const __initGuard = (fn: () => void): void => {
+  try {
+    fn()
+  } catch (e) {
+    showError(`[INIT] ${String(e)}`)
+  }
+}
+
+// ── Safe DOM helpers: never crash on missing elements ─────
+const __errors: string[] = []
+const showError = (msg: string): void => {
+  __errors.push(msg)
+  if (__errors.length > 5) __errors.shift()
+  let box = document.getElementById('__error-bar')
+  if (!box) {
+    box = document.createElement('div')
+    box.id = '__error-bar'
+    box.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#2a0000;color:#ff6666;font:10px monospace;padding:4px 12px;border-top:1px solid #8b0000;max-height:60px;overflow-y:auto;white-space:pre-wrap;'
+    document.body.appendChild(box)
+  }
+  box.textContent = __errors.join('\n')
+}
+
+const $ = <T extends HTMLElement>(id: string): T => {
+  const el = document.getElementById(id)
+  if (!el) {
+    showError(`[DOM] missing #${id}`)
+    return document.createElement('div') as unknown as T
+  }
+  return el as T
+}
+
+// ── Global error handlers ──────────────────────────────────
+window.addEventListener('error', (e) => {
+  showError(`[JS] ${e.message} @ ${e.filename}:${e.lineno}`)
+})
+window.addEventListener('unhandledrejection', (e) => {
+  showError(`[PROMISE] ${String(e.reason)}`)
+})
+
+// ── Safe event listener helper ─────────────────────────────
+const on = (id: string, event: string, fn: EventListener): void => {
+  const el = document.getElementById(id)
+  if (!el) return // silently skip missing elements
+  el.addEventListener(event, fn)
+}
 const ledger = $('ledger')
 const chatLog = $('chatlog')
 
@@ -115,6 +165,54 @@ document.addEventListener('keydown', (e) => {
   }
 })
 
+// ── ask.user: the agent asks, the Principal answers ───────
+api.onAskUser((req) => {
+  const wrap = document.createElement('div')
+  wrap.className = 'msg ai'
+  wrap.style.borderColor = 'var(--dm-orange)'
+  const header = document.createElement('div')
+  header.className = 'msg-header'
+  header.innerHTML = `<span class="msg-header-left"><span class="avatar">◆</span> ANATHEMETRON</span><span>ВОПРОС</span>`
+  const body = document.createElement('div')
+  body.className = 'msg-body'
+  body.textContent = req.question
+  const actions = document.createElement('div')
+  actions.style.cssText = 'display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;'
+  const submit = (answer: string): void => {
+    void api.answerUser(req.id, answer)
+    body.textContent = `${req.question}\n→ ${answer}`
+    actions.remove()
+  }
+  if (req.options?.length) {
+    for (const opt of req.options.slice(0, 5)) {
+      const btn = document.createElement('button')
+      btn.className = 'dm-btn dm-btn-green dm-btn-small'
+      btn.textContent = opt
+      btn.addEventListener('click', () => submit(opt))
+      actions.appendChild(btn)
+    }
+  }
+  const input = document.createElement('input')
+  input.className = 'dm-input'
+  input.style.cssText = 'flex:1;min-width:150px;text-transform:none;'
+  input.placeholder = 'Свободный ответ…'
+  const send = document.createElement('button')
+  send.className = 'dm-btn dm-btn-red dm-btn-small'
+  send.textContent = 'ОТВЕТ'
+  send.addEventListener('click', () => submit(input.value || '(пусто)'))
+  input.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') submit(input.value || '(пусто)')
+  })
+  actions.appendChild(input)
+  actions.appendChild(send)
+  wrap.appendChild(header)
+  wrap.appendChild(body)
+  wrap.appendChild(actions)
+  chatLog.appendChild(wrap)
+  scrollEnd(chatLog)
+  input.focus()
+})
+
 // ── council panel (DIALOGUS TEAM reborn) ─────────────────
 const renderCouncilList = (): void => {
   const box = $('council-list')
@@ -151,8 +249,8 @@ const syncToggle = (id: string): void => {
 }
 syncToggle('auto')
 syncToggle('web')
-$('auto').addEventListener('change', () => syncToggle('auto'))
-$('web').addEventListener('change', () => syncToggle('web'))
+on('auto', 'change', () => syncToggle('auto'))
+on('web', 'change', () => syncToggle('web'))
 
 // ── prompt templates (DIALOGUS) ──────────────────────────
 const TEMPLATES: Record<string, string> = {
@@ -179,26 +277,26 @@ const lastAnswer = (): string => {
   }
   return ''
 }
-$('save-note').addEventListener('click', () => {
+on('save-note', 'click', () => {
   const text = lastAnswer()
   if (!text) { statusChip('✗ нет ответа для сохранения'); return }
   const title = (chatHistory.at(-2)?.content ?? 'note').slice(0, 40)
   void api.saveNote(title, text).then((r) => statusChip(r.ok ? `◆ писание сохранено: ${r.path}` : `✗ ${r.path}`))
 })
-$('create-task').addEventListener('click', () => {
+on('create-task', 'click', () => {
   const text = lastAnswer().slice(0, 200) || (chatHistory.at(-1)?.content ?? '')
   if (!text) { statusChip('✗ пусто'); return }
   void api.addTask(text.replace(/\n/g, ' ')).then((r) => statusChip(r.ok ? `◆ задача в ledger: ${r.path}` : `✗ ${r.path}`))
 })
 
 // ── DOC button ───────────────────────────────────────────
-$('export-md').addEventListener('click', () => {
+on('export-md', 'click', () => {
   if (!chatHistory.length) { statusChip('✗ диалог пуст'); return }
   void api.exportChat(chatHistory.map((x) => ({ role: x.role, content: x.content }))).then((r) =>
     statusChip(r.ok ? `◆ диалог сохранён: ${r.path}` : '✗ отменено')
   )
 })
-$('brain-ping').addEventListener('click', () => {
+on('brain-ping', 'click', () => {
   const btn = $('brain-ping') as HTMLButtonElement
   btn.textContent = '◆ ПРОВЕРЯЮ…'
   void api
@@ -221,7 +319,7 @@ void (async () => {
     // first run
   }
 })()
-$('mcp-save').addEventListener('click', () => {
+on('mcp-save', 'click', () => {
   const json = ($('mcp-json') as HTMLTextAreaElement).value
   void api.saveMcp(json).then((r) =>
     statusChip(
@@ -232,7 +330,7 @@ $('mcp-save').addEventListener('click', () => {
   )
 })
 
-$('doc').addEventListener('click', () => {
+on('doc', 'click', () => {
   void api.pickDocs().then((r) => {
     if (r.ok && r.copied.length) {
       statusChip(`◆ документы в workspace-инбоксе: ${r.copied.join(', ')} (агент: fs.list inbox)`)
@@ -260,16 +358,16 @@ document.querySelectorAll<HTMLButtonElement>('.suggest').forEach((b) => {
 })
 
 // ── settings modal ───────────────────────────────────────
-$('settings-btn').addEventListener('click', () => {
+on('settings-btn', 'click', () => {
   ;($('settings-modal') as HTMLElement).classList.remove('hidden')
   runScan()
 })
-$('settings-close').addEventListener('click', () => {
+on('settings-close', 'click', () => {
   persistBrains()
   ;($('settings-modal') as HTMLElement).classList.add('hidden')
   refreshBrainStatus()
 })
-$('council').addEventListener('change', () => {
+on('council', 'change', () => {
   ;($('advisor-row') as HTMLElement).hidden = !($('council') as HTMLInputElement).checked
 })
 
@@ -318,7 +416,7 @@ const applyTheme = (t: string): void => {
   localStorage.setItem('heretic-theme', t)
 }
 applyTheme(localStorage.getItem('heretic-theme') ?? 'mechanicus')
-$('theme').addEventListener('click', () => {
+on('theme', 'click', () => {
   const cur = document.documentElement.dataset.theme ?? 'mechanicus'
   applyTheme(THEMES[(THEMES.indexOf(cur as (typeof THEMES)[number]) + 1) % THEMES.length] ?? 'mechanicus')
 })
@@ -330,8 +428,8 @@ const showView = (id: 'chat' | 'agent'): void => {
   ;($('nav-chat') as HTMLElement).classList.toggle('active', id === 'chat')
   ;($('nav-agent') as HTMLElement).classList.toggle('active', id === 'agent')
 }
-$('nav-chat').addEventListener('click', () => showView('chat'))
-$('nav-agent').addEventListener('click', () => showView('agent'))
+on('nav-chat', 'click', () => showView('chat'))
+on('nav-agent', 'click', () => showView('agent'))
 
 // ── agent ledger ─────────────────────────────────────────
 function ledgerCard(html: string): HTMLDivElement {
@@ -453,7 +551,7 @@ const runScan = (): void => {
     }
   })()
 }
-$('model-chip').addEventListener('change', () => {
+on('model-chip', 'change', () => {
   const chip = $('model-chip') as HTMLSelectElement
   if (!chip.value) return
   const url = ($('c-url') as HTMLInputElement).value.trim()
@@ -477,7 +575,7 @@ councilBox.addEventListener('change', () => {
 })
 
 // ── agent ignition ───────────────────────────────────────
-$('ignite').addEventListener('click', () => {
+on('ignite', 'click', () => {
   if (running) {
     if (($('ignite') as HTMLElement).classList.contains('stopping')) void api.stopSession()
     return
@@ -529,8 +627,8 @@ $('ignite').addEventListener('click', () => {
   })
 })
 
-$('task').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') $('ignite').click()
+on('task', 'keydown', (e: Event) => {
+  if ((e as KeyboardEvent).key === 'Enter') ($('ignite') as HTMLElement).click()
 })
 
 
@@ -803,16 +901,16 @@ void api.loadPersona().then((p) => {
   persona = p.persona
   ;($('persona-text') as HTMLTextAreaElement).value = persona
 })
-$('persona-btn').addEventListener('click', () => ($('persona-modal') as HTMLElement).classList.remove('hidden'))
-$('persona-close').addEventListener('click', () => ($('persona-modal') as HTMLElement).classList.add('hidden'))
-$('persona-save').addEventListener('click', () => {
+on('persona-btn', 'click', () => ($('persona-modal') as HTMLElement).classList.remove('hidden'))
+on('persona-close', 'click', () => ($('persona-modal') as HTMLElement).classList.add('hidden'))
+on('persona-save', 'click', () => {
   persona = ($('persona-text') as HTMLTextAreaElement).value.trim()
   void api.savePersona(persona)
   ;($('persona-modal') as HTMLElement).classList.add('hidden')
 })
 
 // ── workspace ────────────────────────────────────────────
-$('ws-pick').addEventListener('click', () => {
+on('ws-pick', 'click', () => {
   void api.pickWorkspace().then((r) => {
     if (r.ok && r.path) {
       ;($('ws-path') as HTMLInputElement).value = r.path
@@ -842,7 +940,7 @@ const renderAttached = (): void => {
     box.appendChild(chip)
   })
 }
-$('attach').addEventListener('click', () => {
+on('attach', 'click', () => {
   void api.pickImages().then((r) => {
     if (r.ok && r.images.length) {
       attached = [...attached, ...r.images].slice(0, 4)
@@ -857,7 +955,7 @@ void api.voiceStatus().then((v) => {
 })
 let rec: MediaRecorder | null = null
 let recChunks: Blob[] = []
-$('mic').addEventListener('click', () => {
+on('mic', 'click', () => {
   if (rec) {
     rec.stop()
     return
@@ -965,7 +1063,7 @@ const renderSessionSelect = (): void => {
   }
 }
 
-$('session-filter').addEventListener('input', () => renderSessionSelect())
+on('session-filter', 'input', (): void => renderSessionSelect())
 
 const persistCurrentSession = (): void => {
   if (!chatHistory.length) return
@@ -998,7 +1096,7 @@ const restoreSession = (id: string): void => {
   scrollEnd(chatLog)
 }
 
-$('new-chat').addEventListener('click', () => {
+on('new-chat', 'click', () => {
   currentSessionId = null
   chatHistory.length = 0
   chatLog.innerHTML = '<div class="empty-state"><div class="glyph">&#9670;</div><h2>НОВЫЙ ДИАЛОГ</h2><p>Спроси что угодно — или доверь задачу.</p></div>'
@@ -1034,14 +1132,15 @@ const persistBrains = (): void => {
     workspace: ($('ws-path') as HTMLInputElement).value.trim()
   })
 }
-$('send').addEventListener('click', () => {
+on('send', 'click', () => {
   if (($('send') as HTMLElement).classList.contains('stopping')) return
   persistBrains()
   sendChat()
 })
-$('chat-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
+on('chat-input', 'keydown', (e: Event) => {
+  const ke = e as KeyboardEvent
+  if (ke.key === 'Enter' && !ke.shiftKey) {
+    ke.preventDefault()
     sendChat()
   }
 })

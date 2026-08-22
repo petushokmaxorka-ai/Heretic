@@ -12,6 +12,15 @@ const api = {
     ipcRenderer.invoke(IPC.AUTO_SEND, payload),
   chatSend: (payload: ChatRequestPayload): Promise<{ answer: string; sources: { title: string; url: string; snippet: string }[]; error?: string }> =>
     ipcRenderer.invoke(IPC.CHAT_SEND, payload),
+  askUser: (question: string, options?: string[]): Promise<string> =>
+    ipcRenderer.invoke(IPC.ASK_USER, { question, options }),
+  answerUser: (id: number, answer: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.ASK_ANSWER, { id, answer }),
+  onAskUser: (cb: (req: { id: number; question: string; options?: string[] }) => void): (() => void) => {
+    const h = (_e: unknown, v: { id: number; question: string; options?: string[] }): void => cb(v)
+    ipcRenderer.on(IPC.ASK_USER, h)
+    return () => ipcRenderer.removeListener(IPC.ASK_USER, h)
+  },
   onChatDelta: (cb: (d: string, model?: string) => void): (() => void) => {
     const h = (_e: unknown, v: { delta: string; model?: string }): void => cb(v.delta, v.model)
     ipcRenderer.on(IPC.CHAT_DELTA, h)

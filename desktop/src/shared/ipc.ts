@@ -28,6 +28,8 @@ export const IPC = {
   CHAT_EXPORT: 'chat:export',
   BRAIN_PING: 'brain:ping',
   MCP_SAVE: 'mcp:save',
+  ASK_USER: 'ask:user',
+  ASK_ANSWER: 'ask:answer',
   CHAT_DELTA: 'chat:delta',
   CHAT_STATUS: 'chat:status'
 } as const
