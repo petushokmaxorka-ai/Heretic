@@ -282,3 +282,9 @@ textarea#chat-input::placeholder { color: var(--dm-muted); text-transform: upper
 
 .hidden { display: none !important; }
 .view.hidden { display: none !important; }
+
+.template-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+.sidebar .avatar img { width: 24px; height: 24px; object-fit: contain; }
+.header .avatar img { width: 32px; height: 32px; object-fit: contain; }
+.msg-header .avatar img { width: 12px; height: 12px; object-fit: contain; }
+.avatar img { border-radius: 50%; }

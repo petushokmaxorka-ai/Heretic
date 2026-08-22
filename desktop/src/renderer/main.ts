@@ -13,7 +13,7 @@ interface StepView {
 }
 
 interface AutoApi {
-  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean; persona?: string; images?: string[]; codexUrl?: string; codexModel?: string; workspace?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }>
+  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean; persona?: string; images?: string[]; codexUrl?: string; codexModel?: string; workspace?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string; tokens?: number; local?: boolean }>
 }
 
 interface ChatApi extends AutoApi {
@@ -27,6 +27,10 @@ interface VoiceApi {
   voiceTranscribe(dataB64: string, mime: string): Promise<{ ok: boolean; text: string; error?: string }>
   onCardia(cb: (b: { cycle: number; lobe: 'A' | 'B'; lobeName: string }) => void): void
   pickWorkspace(): Promise<{ ok: boolean; path: string }>
+  avatarDataUrl(): Promise<{ ok: boolean; dataUrl: string }>
+  pickDocs(): Promise<{ ok: boolean; copied: string[] }>
+  saveNote(title: string, text: string): Promise<{ ok: boolean; path: string }>
+  addTask(text: string): Promise<{ ok: boolean; path: string }>
 }
 
 interface PersonaApi extends VoiceApi {
@@ -62,13 +66,43 @@ let selected: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: str
 let running = false
 
 const setBrainStatus = (text: string, connected: boolean): void => {
-  ;($('brain-text') as HTMLElement).textContent = text
+  ;($('brain-text') as HTMLElement).textContent = text.toUpperCase()
   ;($('conn-dot') as HTMLElement).className = `conn-dot ${connected ? 'on' : 'off'}`
+  const hm = $('hdr-model')
+  if (hm) hm.textContent = `MODEL: ${text.toUpperCase()}`
 }
 
 const scrollEnd = (el: HTMLElement): void => {
   el.scrollTop = el.scrollHeight
 }
+
+let avatarUrl = ''
+const maybeAvatar = (el: HTMLElement | null): void => {
+  if (!el || !avatarUrl) return
+  el.innerHTML = ''
+  const img = document.createElement('img')
+  img.src = avatarUrl
+  el.appendChild(img)
+}
+void api.avatarDataUrl().then((a) => {
+  if (!a.ok || !a.dataUrl) return
+  avatarUrl = a.dataUrl
+  maybeAvatar(document.querySelector('.sidebar .avatar'))
+  maybeAvatar(document.querySelector('.header .avatar'))
+})
+
+// ── avatar dup-guard ─────────────────────────────────────
+void api.avatarDataUrl().then((a) => {
+  if (!a.ok || !a.dataUrl) return
+  const inject = (el: HTMLElement): void => {
+    el.innerHTML = ''
+    const img = document.createElement('img')
+    img.src = a.dataUrl
+    el.appendChild(img)
+  }
+  inject(document.querySelector('.sidebar .avatar') as HTMLElement)
+  inject(document.querySelector('.header .avatar') as HTMLElement)
+})
 
 // ── toggle buttons: DIALOGUS active state ────────────────
 const syncToggle = (id: string): void => {
@@ -80,6 +114,62 @@ syncToggle('auto')
 syncToggle('web')
 $('auto').addEventListener('change', () => syncToggle('auto'))
 $('web').addEventListener('change', () => syncToggle('web'))
+
+// ── prompt templates (DIALOGUS) ──────────────────────────
+const TEMPLATES: Record<string, string> = {
+  explain: 'Объясни подробно и структурировано:\n\n',
+  refactor: 'Отрефактори следующий код, сохранив поведение, и объясни изменения:\n\n',
+  test: 'Напиши тесты для следующего кода:\n\n',
+  architect: 'Спроектируй архитектуру решения для задачи:\n\n',
+  review: 'Проведи ревью кода и укажи проблемы по серьёзности:\n\n',
+  summarize: 'Суммируй главное в следующем тексте:\n\n'
+}
+document.querySelectorAll<HTMLButtonElement>('.tpl').forEach((b) => {
+  b.addEventListener('click', () => {
+    const input = $('chat-input') as HTMLTextAreaElement
+    input.value = (TEMPLATES[b.dataset.tpl ?? ''] ?? '') + input.value
+    input.focus()
+    input.selectionStart = input.value.length
+  })
+})
+
+// ── scriptorium ──────────────────────────────────────────
+const lastAnswer = (): string => {
+  for (let i = chatHistory.length - 1; i >= 0; i--) {
+    if (chatHistory[i]!.role === 'assistant') return chatHistory[i]!.content
+  }
+  return ''
+}
+$('save-note').addEventListener('click', () => {
+  const text = lastAnswer()
+  if (!text) { statusChip('✗ нет ответа для сохранения'); return }
+  const title = (chatHistory.at(-2)?.content ?? 'note').slice(0, 40)
+  void api.saveNote(title, text).then((r) => statusChip(r.ok ? `◆ писание сохранено: ${r.path}` : `✗ ${r.path}`))
+})
+$('create-task').addEventListener('click', () => {
+  const text = lastAnswer().slice(0, 200) || (chatHistory.at(-1)?.content ?? '')
+  if (!text) { statusChip('✗ пусто'); return }
+  void api.addTask(text.replace(/\n/g, ' ')).then((r) => statusChip(r.ok ? `◆ задача в ledger: ${r.path}` : `✗ ${r.path}`))
+})
+
+// ── DOC button ───────────────────────────────────────────
+$('doc').addEventListener('click', () => {
+  void api.pickDocs().then((r) => {
+    if (r.ok && r.copied.length) {
+      statusChip(`◆ документы в workspace-инбоксе: ${r.copied.join(', ')} (агент: fs.list inbox)`)
+    }
+  })
+})
+
+// ── token ledger ─────────────────────────────────────────
+let tokTotal = 0
+let tokLocal = 0
+let tokCloud = 0
+const renderTokens = (): void => {
+  ;($('tok-total') as HTMLElement).textContent = tokTotal.toLocaleString('ru-RU')
+  ;($('tok-local') as HTMLElement).textContent = tokLocal.toLocaleString('ru-RU')
+  ;($('tok-cloud') as HTMLElement).textContent = tokCloud.toLocaleString('ru-RU')
+}
 
 // ── suggestion chips ─────────────────────────────────────
 document.querySelectorAll<HTMLButtonElement>('.suggest').forEach((b) => {
@@ -454,6 +544,7 @@ const userBubble = (text: string, images: string[] = [], idx = -1): void => {
   const header = document.createElement('div')
   header.className = 'msg-header'
   header.innerHTML = `<span class="msg-header-left"><span class="avatar">&#9670;</span> ПРИНЦИПАЛ</span><span>${stamp()}</span>`
+  void maybeAvatar(header.querySelector('.avatar') as HTMLElement)
   div.appendChild(header)
   const body = document.createElement('div')
   body.className = 'msg-body'
@@ -486,6 +577,7 @@ const aiMessage = (): HTMLDivElement => {
       <span>${stamp()}</span>
     </div>
     <div class="msg-body"></div>`
+  void maybeAvatar(wrap.querySelector('.avatar') as HTMLElement)
   chatNode(wrap)
   return wrap.querySelector('.msg-body') as HTMLDivElement
 }
@@ -569,6 +661,12 @@ const dispatch = (images: string[]): void => {
           '<div class="dm-label" style="margin-bottom:4px;">&#9670; SOURCES</div>' +
           r.sources.map((sr, i) => `<div class="source-item">[${i + 1}] <a href="${sr.url}" target="_blank" rel="noopener">${sr.title}</a></div>`).join('')
         chatNode(box)
+      }
+      if (r.tokens) {
+        tokTotal += r.tokens
+        if (r.local) tokLocal += r.tokens
+        else tokCloud += r.tokens
+        renderTokens()
       }
       chatHistory.push({ role: 'assistant', content: r.answer })
       persistCurrentSession()
@@ -705,7 +803,7 @@ $('mic').addEventListener('click', () => {
 })
 
 // ── sessions ─────────────────────────────────────────────
-interface StoredSession { id: string; name: string; updated: number; history: { role: 'user' | 'assistant'; content: string }[] }
+interface StoredSession { id: string; name: string; updated: number; history: { role: 'user' | 'assistant'; content: string }[]; model?: string }
 
 const loadSessions = (): StoredSession[] => {
   try {
@@ -744,7 +842,7 @@ const renderSessionSelect = (): void => {
   for (const ses of all.slice(0, 30)) {
     const item = document.createElement('div')
     item.className = `session-item${ses.id === currentSessionId ? ' active' : ''}`
-    item.innerHTML = `<div class="session-title">${ses.name}</div><div class="session-meta">${new Date(ses.updated).toLocaleDateString('ru-RU')} · ${ses.history.length} сообщ.</div><button class="rm msg-action" title="удалить">✕</button>`
+    item.innerHTML = `<div class="session-title">${ses.name}</div><div class="session-meta">${ses.model ?? '—'} · ${ses.history.length} сообщ.</div><button class="rm msg-action" title="удалить">✕</button>`
     item.addEventListener('click', (e) => {
       const t = e.target as HTMLElement
       if (t.classList.contains('rm')) {
@@ -782,7 +880,8 @@ const persistCurrentSession = (): void => {
   currentSessionId = id
   const name = (chatHistory.find((m) => m.role === 'user')?.content ?? 'session').slice(0, 28)
   const existing = all.findIndex((s) => s.id === id)
-  const entry: StoredSession = { id, name, updated: Date.now(), history: [...chatHistory] }
+  const model = ($('model-chip') as HTMLSelectElement).value || ($('c-model') as HTMLInputElement).value.trim() || '—'
+  const entry: StoredSession = { id, name, updated: Date.now(), history: [...chatHistory], model }
   if (existing >= 0) all[existing] = entry
   else all.push(entry)
   saveSessions(all)

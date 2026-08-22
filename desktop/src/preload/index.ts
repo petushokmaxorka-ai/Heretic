@@ -8,7 +8,7 @@ const api = {
     ipcRenderer.invoke(IPC.SESSION_RUN, { task, brain, advisor, trust }),
   scanBrains: (): Promise<{ name: string; baseUrl: string; models: string[]; residents: string[] }[]> =>
     ipcRenderer.invoke(IPC.BRAINS_SCAN),
-  autoSend: (payload: AutoRequestPayload & { persona?: string; images?: string[]; codexUrl?: string; codexModel?: string; workspace?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }> =>
+  autoSend: (payload: AutoRequestPayload & { persona?: string; images?: string[]; codexUrl?: string; codexModel?: string; workspace?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string; tokens?: number; local?: boolean }> =>
     ipcRenderer.invoke(IPC.AUTO_SEND, payload),
   chatSend: (payload: ChatRequestPayload): Promise<{ answer: string; sources: { title: string; url: string; snippet: string }[]; error?: string }> =>
     ipcRenderer.invoke(IPC.CHAT_SEND, payload),
@@ -33,6 +33,10 @@ const api = {
   pickImages: (): Promise<{ ok: boolean; images: string[] }> => ipcRenderer.invoke(IPC.ATTACH_PICK),
   voiceStatus: (): Promise<{ available: boolean; reason: string }> => ipcRenderer.invoke(IPC.VOICE_STATUS),
   pickWorkspace: (): Promise<{ ok: boolean; path: string }> => ipcRenderer.invoke(IPC.WORKSPACE_PICK),
+  avatarDataUrl: (): Promise<{ ok: boolean; dataUrl: string }> => ipcRenderer.invoke(IPC.ASSET_AVATAR),
+  pickDocs: (): Promise<{ ok: boolean; copied: string[] }> => ipcRenderer.invoke(IPC.DOC_PICK),
+  saveNote: (title: string, text: string): Promise<{ ok: boolean; path: string }> => ipcRenderer.invoke(IPC.NOTE_SAVE, { title, text }),
+  addTask: (text: string): Promise<{ ok: boolean; path: string }> => ipcRenderer.invoke(IPC.TASK_ADD, text),
   voiceTranscribe: (dataB64: string, mime: string): Promise<{ ok: boolean; text: string; error?: string }> =>
     ipcRenderer.invoke(IPC.VOICE_TRANSCRIBE, { dataB64, mime }),
   onCardia: (cb: (b: { cycle: number; lobe: 'A' | 'B'; lobeName: string }) => void): (() => void) => {

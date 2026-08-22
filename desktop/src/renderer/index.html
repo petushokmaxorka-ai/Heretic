@@ -27,6 +27,18 @@
       <button id="new-chat" class="dm-btn dm-btn-red" style="width:100%;justify-content:center;">◆ NEW DIALOG</button>
 
       <div>
+        <div class="section-title">◆ PROMPT TEMPLATES</div>
+        <div class="template-grid">
+          <button class="dm-btn template-btn tpl" data-tpl="explain">EXPLAIN</button>
+          <button class="dm-btn template-btn tpl" data-tpl="refactor">REFACTOR</button>
+          <button class="dm-btn template-btn tpl" data-tpl="test">TEST</button>
+          <button class="dm-btn template-btn tpl" data-tpl="architect">ARCHITECT</button>
+          <button class="dm-btn template-btn tpl" data-tpl="review">REVIEW</button>
+          <button class="dm-btn template-btn tpl" data-tpl="summarize">SUMMARIZE</button>
+        </div>
+      </div>
+
+      <div>
         <div class="section-title">◆ BRAIN</div>
         <select id="model-chip" class="dm-select"></select>
       </div>
@@ -42,6 +54,27 @@
       <div style="display:flex;flex-direction:column;flex:1;min-height:0;">
         <div class="section-title">◆ DIALOGS</div>
         <div id="session-list" class="session-list"></div>
+      </div>
+
+      <div>
+        <div class="section-title">◆ SCRIPTORIUM</div>
+        <div style="display:flex;gap:6px;">
+          <button id="save-note" class="dm-btn dm-btn-small" style="flex:1;justify-content:center;">SAVE AS NOTE</button>
+          <button id="create-task" class="dm-btn dm-btn-small" style="flex:1;justify-content:center;">CREATE TASK</button>
+        </div>
+      </div>
+
+      <div class="dm-panel" style="padding:8px;">
+        <div class="section-title" style="margin-bottom:6px;">◆ LEDGER</div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dm-muted);margin-bottom:4px;">
+          <span>TOTAL TOKENS</span><span id="tok-total" style="color:var(--dm-gold);">0</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dm-muted);margin-bottom:4px;">
+          <span>LOCAL</span><span id="tok-local" style="color:var(--dm-green-text);">0</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dm-muted);">
+          <span>CLOUD</span><span id="tok-cloud" style="color:var(--dm-red-text);">0</span>
+        </div>
       </div>
 
       <div style="display:flex;gap:6px;">
@@ -65,6 +98,7 @@
           <span id="cardia" class="status-text hidden" style="color:var(--dm-red-text);">♥</span>
           <span class="status-text"><span class="conn-dot off" id="conn-dot"></span><span id="brain-text">ПОДКЛЮЧЕНИЕ…</span></span>
           <span class="status-dot status-ok">◉</span>
+          <span class="status-text" id="hdr-model">MODEL: —</span>
         </div>
       </header>
 
@@ -72,7 +106,7 @@
       <section id="chatview" class="view" style="display:flex;flex-direction:column;flex:1;min-height:0;gap:8px;">
         <div class="dm-panel options-bar">
           <label class="toggle-btn active" id="auto-toggle"><input type="checkbox" id="auto" checked />OBSERVE</label>
-          <label class="toggle-btn" id="web-toggle"><input type="checkbox" id="web" />WEB</label>
+          <label class="toggle-btn" id="web-toggle"><input type="checkbox" id="web" />NOOSPHERE</label>
           <select id="think" class="dm-select small">
             <option value="low">МЫШЛЕНИЕ · LOW</option>
             <option value="mid" selected>МЫШЛЕНИЕ · MID</option>
@@ -98,10 +132,11 @@
         <div class="dm-panel input-area">
           <div id="attach-preview" class="attachment-row"></div>
           <div class="input-row">
-            <textarea id="chat-input" rows="2" placeholder="Спроси что угодно или дай задачу…"></textarea>
-            <button id="attach" class="dm-btn input-action" title="прикрепить картинки">＋</button>
-            <button id="mic" class="dm-btn input-action hidden" title="голосовой ввод">●</button>
-            <button id="send" class="dm-btn dm-btn-red send-btn">ОТПРАВИТЬ</button>
+            <textarea id="chat-input" rows="2" placeholder="Speak to the machine…"></textarea>
+            <button id="attach" class="dm-btn input-action" title="картинки">IMG</button>
+            <button id="doc" class="dm-btn input-action" title="документ в workspace">DOC</button>
+            <button id="mic" class="dm-btn input-action hidden" title="голос">MIC</button>
+            <button id="send" class="dm-btn dm-btn-red send-btn">SEND</button>
           </div>
         </div>
       </section>
