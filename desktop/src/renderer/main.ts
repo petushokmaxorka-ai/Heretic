@@ -70,6 +70,17 @@ const scrollEnd = (el: HTMLElement): void => {
   el.scrollTop = el.scrollHeight
 }
 
+// ── toggle buttons: DIALOGUS active state ────────────────
+const syncToggle = (id: string): void => {
+  const input = $(id) as HTMLInputElement
+  const label = input.closest('.toggle-btn')
+  label?.classList.toggle('active', input.checked)
+}
+syncToggle('auto')
+syncToggle('web')
+$('auto').addEventListener('change', () => syncToggle('auto'))
+$('web').addEventListener('change', () => syncToggle('web'))
+
 // ── suggestion chips ─────────────────────────────────────
 document.querySelectorAll<HTMLButtonElement>('.suggest').forEach((b) => {
   b.addEventListener('click', () => {
@@ -166,12 +177,12 @@ function renderStep(s: StepView): void {
   const title = s.kind === 'final' ? 'final answer' : s.title
   const note = s.note ? ` — ${s.note}` : ''
   ledgerCard(`
-    <div class="step-card ${verdict}">
-      <span class="step-dot"></span>
-      <span class="step-index">${s.index}</span>
-      <span class="step-title">${title}</span>
-      <span class="step-detail">${(s.detail || '').split('\n')[0] ?? ''}${note}</span>
-      <span class="verdict-pill">${verdict}</span>
+    <div class="step-card">
+      <span class="v-${verdict}">${verdict === 'verified' ? '✓' : verdict === 'awaiting' ? '⚠' : '✗'}</span>
+      <span class="n">${s.index}</span>
+      <span class="t">${title}</span>
+      <span class="d">${(s.detail || '').split('\n')[0] ?? ''}${note}</span>
+      <span class="v-${verdict}">${verdict.toUpperCase()}</span>
     </div>`)
 }
 
@@ -179,7 +190,7 @@ let thinkingLine: HTMLDivElement | null = null
 api.onThinking((t) => {
   if (!thinkingLine) {
     thinkingLine = document.createElement('div')
-    thinkingLine.className = 'status-chip'
+    thinkingLine.className = 'status-line'
     thinkingLine.textContent = '◈ '
     ledger.appendChild(thinkingLine)
   }
@@ -204,7 +215,7 @@ api.onFinal((r) => {
   ledgerCard(
     r.ok
       ? `<div class="final-card">${r.final}</div>`
-      : `<div class="final-card bad">${r.final || 'session ended without a verified final answer'}</div>`
+      : `<div class="final-card" style="border-left-color:var(--dm-red-text);">✗ ${r.final || 'session ended without a verified final answer'}</div>`
   )
 })
 api.onApproval((req) => {
@@ -215,10 +226,9 @@ api.onApproval((req) => {
     : ''
   const row = ledgerCard(`
     <div class="approval-card">
-      <span class="step-dot" style="background: var(--warn)"></span>
-      <span class="grow"><b>${req.action}</b> <span class="dim small mono">${req.detail}</span>${diffHtml}</span>
-      <button class="approve-btn">Approve</button>
-      <button class="deny-btn">Deny</button>
+      <span class="grow"><b style="color:var(--dm-orange);">⚠ ${req.action}</b> <span class="d" style="font-size:9px;color:var(--dm-muted);">${req.detail}</span>${diffHtml}</span>
+      <button class="dm-btn dm-btn-green dm-btn-small">APPROVE</button>
+      <button class="dm-btn dm-btn-small">DENY</button>
     </div>`)
   const [ok, no] = row.querySelectorAll('button')
   ok?.addEventListener('click', () => {
@@ -338,7 +348,7 @@ $('ignite').addEventListener('click', () => {
   igniteBtn.classList.add('stopping')
   ledger.innerHTML = ''
   ledgerCard(
-    `<div class="status-chip">session start · trust=${($('trust') as HTMLSelectElement).value}${advisor ? ' · council' : ''}</div>`
+    `<div class="status-line observe">◆ SESSION START · TRUST=${($('trust') as HTMLSelectElement).value.toUpperCase()}${advisor ? ' · COUNCIL' : ''}</div>`
   )
   void api.runSession(task, selected, ($('trust') as HTMLSelectElement).value, advisor, advisors).then(() => {
     igniteBtn.textContent = '◆'
@@ -392,7 +402,7 @@ const chatNode = (el: HTMLElement): HTMLElement => {
 
 const statusChip = (text: string, observe = false): void => {
   const div = document.createElement('div')
-  div.className = `status-chip${observe ? ' observe' : ''}`
+  div.className = `status-line${observe ? ' observe' : ''}`
   div.textContent = text
   chatNode(div)
 }
@@ -436,35 +446,48 @@ const bubbleActions = (idx: number, text: string): HTMLDivElement => {
   return row
 }
 
+const stamp = (): string => new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+
 const userBubble = (text: string, images: string[] = [], idx = -1): void => {
   const div = document.createElement('div')
-  div.className = 'msg-user'
-  div.textContent = text
+  div.className = 'msg user'
+  const header = document.createElement('div')
+  header.className = 'msg-header'
+  header.innerHTML = `<span class="msg-header-left"><span class="avatar">&#9670;</span> ПРИНЦИПАЛ</span><span>${stamp()}</span>`
+  div.appendChild(header)
+  const body = document.createElement('div')
+  body.className = 'msg-body'
+  body.textContent = text
+  div.appendChild(body)
   if (images.length) {
     const strip = document.createElement('div')
-    strip.className = 'attach-preview'
     for (const u of images) {
       const im = document.createElement('img')
       im.src = u
+      im.className = 'msg-image'
       strip.appendChild(im)
     }
-    div.appendChild(strip)
+    body.appendChild(strip)
   }
-  if (idx >= 0) div.appendChild(bubbleActions(idx, text))
+  if (idx >= 0) {
+    const actions = bubbleActions(idx, text)
+    actions.classList.add('msg-actions')
+    header.appendChild(actions)
+  }
   chatNode(div)
 }
 
 const aiMessage = (): HTMLDivElement => {
   const wrap = document.createElement('div')
-  wrap.className = 'msg-ai'
+  wrap.className = 'msg ai'
   wrap.innerHTML = `
-    <div class="avatar">◆</div>
-    <div class="msg-body">
-      <div class="msg-name">ANATHEMETRON</div>
-      <div class="msg-content"></div>
-    </div>`
+    <div class="msg-header">
+      <span class="msg-header-left"><span class="avatar">&#9670;</span> ANATHEMETRON</span>
+      <span>${stamp()}</span>
+    </div>
+    <div class="msg-body"></div>`
   chatNode(wrap)
-  return wrap.querySelector('.msg-content') as HTMLDivElement
+  return wrap.querySelector('.msg-body') as HTMLDivElement
 }
 
 let streamTarget: HTMLDivElement | null = null
@@ -542,9 +565,9 @@ const dispatch = (images: string[]): void => {
       if (r.sources.length) {
         const box = document.createElement('div')
         box.className = 'sources'
-        box.innerHTML = r.sources
-          .map((sr, i) => `<div class="source-link">[${i + 1}] <b>${sr.title}</b> — ${sr.url}</div>`)
-          .join('')
+        box.innerHTML =
+          '<div class="dm-label" style="margin-bottom:4px;">&#9670; SOURCES</div>' +
+          r.sources.map((sr, i) => `<div class="source-item">[${i + 1}] <a href="${sr.url}" target="_blank" rel="noopener">${sr.title}</a></div>`).join('')
         chatNode(box)
       }
       chatHistory.push({ role: 'assistant', content: r.answer })
@@ -553,13 +576,20 @@ const dispatch = (images: string[]): void => {
     })
 }
 
+const inputEl = $('chat-input') as HTMLTextAreaElement
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto'
+  inputEl.style.height = Math.min(160, inputEl.scrollHeight) + 'px'
+})
+
 const sendChat = (): void => {
   if (chatBusy) return
   const input = $('chat-input') as HTMLInputElement
   const q = input.value.trim()
   if (!q) return
   input.value = ''
-  const emptyHero = chatLog.querySelector('.empty')
+  inputEl.style.height = 'auto'
+  const emptyHero = chatLog.querySelector('.empty-state')
   if (emptyHero) emptyHero.remove()
   const images = attached.slice()
   attached = []
@@ -608,23 +638,19 @@ const renderAttached = (): void => {
   const box = $('attach-preview')
   box.innerHTML = ''
   attached.forEach((dataUrl, i) => {
-    const wrap = document.createElement('div')
-    wrap.className = 'rm'
+    const chip = document.createElement('div')
+    chip.className = 'attachment-chip'
     const img = document.createElement('img')
     img.src = dataUrl
     const x = document.createElement('button')
-    x.className = 'iconbtn'
     x.textContent = '✕'
-    x.style.position = 'absolute'
-    x.style.top = '-6px'
-    x.style.right = '-6px'
     x.addEventListener('click', () => {
       attached.splice(i, 1)
       renderAttached()
     })
-    wrap.appendChild(img)
-    wrap.appendChild(x)
-    box.appendChild(wrap)
+    chip.appendChild(img)
+    chip.appendChild(x)
+    box.appendChild(chip)
   })
 }
 $('attach').addEventListener('click', () => {
@@ -707,11 +733,46 @@ const saveSessions = (all: StoredSession[]): void => {
 let currentSessionId: string | null = null
 
 const renderSessionSelect = (): void => {
-  const sel = $('session') as HTMLSelectElement
-  const all = loadSessions()
-  sel.innerHTML =
-    '<option value="">sessions</option>' +
-    [...all].reverse().map((s) => `<option value="${s.id}" ${s.id === currentSessionId ? 'selected' : ''}>${s.name}</option>`).join('')
+  const box = $('session-list')
+  if (!box) return
+  const all = [...loadSessions()].reverse()
+  box.innerHTML = ''
+  if (!all.length) {
+    box.innerHTML = '<div class="session-item" style="cursor:default;color:var(--dm-muted);">— нет записанных диалогов —</div>'
+    return
+  }
+  for (const ses of all.slice(0, 30)) {
+    const item = document.createElement('div')
+    item.className = `session-item${ses.id === currentSessionId ? ' active' : ''}`
+    item.innerHTML = `<div class="session-title">${ses.name}</div><div class="session-meta">${new Date(ses.updated).toLocaleDateString('ru-RU')} · ${ses.history.length} сообщ.</div><button class="rm msg-action" title="удалить">✕</button>`
+    item.addEventListener('click', (e) => {
+      const t = e.target as HTMLElement
+      if (t.classList.contains('rm')) {
+        saveSessions(loadSessions().filter((x) => x.id !== ses.id))
+        if (currentSessionId === ses.id) {
+          currentSessionId = null
+          chatHistory.length = 0
+          rerenderFromHistory()
+        }
+        renderSessionSelect()
+        return
+      }
+      restoreSession(ses.id)
+    })
+    item.addEventListener('dblclick', () => {
+      const name = window.prompt('Переименовать диалог:', ses.name)
+      if (name) {
+        const all2 = loadSessions()
+        const found = all2.find((x) => x.id === ses.id)
+        if (found) {
+          found.name = name.slice(0, 40)
+          saveSessions(all2)
+          renderSessionSelect()
+        }
+      }
+    })
+    box.appendChild(item)
+  }
 }
 
 const persistCurrentSession = (): void => {
@@ -744,37 +805,10 @@ const restoreSession = (id: string): void => {
   scrollEnd(chatLog)
 }
 
-$('session').addEventListener('dblclick', () => {
-  const id = ($('session') as HTMLSelectElement).value
-  if (!id) return
-  const all = loadSessions()
-  const s = all.find((x) => x.id === id)
-  const name = window.prompt('Переименовать сессию:', s?.name ?? '')
-  if (name && s) {
-    s.name = name.slice(0, 40)
-    saveSessions(all)
-    renderSessionSelect()
-  }
-})
-$('session-del').addEventListener('click', () => {
-  const id = ($('session') as HTMLSelectElement).value
-  if (!id) return
-  saveSessions(loadSessions().filter((s) => s.id !== id))
-  if (currentSessionId === id) {
-    currentSessionId = null
-    chatHistory.length = 0
-    chatLog.innerHTML = '<div class="empty"><div class="empty-mark">◆</div><div class="empty-title">Новая сессия</div></div>'
-  }
-  renderSessionSelect()
-})
-$('session').addEventListener('change', () => {
-  const id = ($('session') as HTMLSelectElement).value
-  if (id) restoreSession(id)
-})
 $('new-chat').addEventListener('click', () => {
   currentSessionId = null
   chatHistory.length = 0
-  chatLog.innerHTML = '<div class="empty"><div class="empty-mark">◆</div><div class="empty-title">Новая сессия</div><div class="empty-sub">Observe сам выберет: чат или агент</div></div>'
+  chatLog.innerHTML = '<div class="empty-state"><div class="glyph">&#9670;</div><h2>НОВЫЙ ДИАЛОГ</h2><p>Спроси что угодно — или доверь задачу.</p></div>'
   renderSessionSelect()
 })
 
@@ -811,5 +845,8 @@ $('send').addEventListener('click', () => {
   sendChat()
 })
 $('chat-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') sendChat()
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    sendChat()
+  }
 })
