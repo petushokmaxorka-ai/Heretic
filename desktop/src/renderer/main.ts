@@ -25,6 +25,7 @@ interface ChatApi extends AutoApi {
 interface VoiceApi {
   voiceStatus(): Promise<{ available: boolean; reason: string }>
   voiceTranscribe(dataB64: string, mime: string): Promise<{ ok: boolean; text: string; error?: string }>
+  onCardia(cb: (b: { cycle: number; lobe: 'A' | 'B'; lobeName: string }) => void): void
 }
 
 interface PersonaApi extends VoiceApi {
@@ -36,7 +37,7 @@ interface PersonaApi extends VoiceApi {
 interface StopApi extends PersonaApi {
   stopSession(): Promise<{ ok: boolean }>
   stopChat(): Promise<{ ok: boolean }>
-  saveBrains(cfg: { url?: string; model?: string; key?: string }): Promise<{ ok: boolean }>
+  saveBrains(cfg: { url?: string; model?: string; key?: string; codexUrl?: string; codexModel?: string }): Promise<{ ok: boolean }>
   loadBrains(): Promise<{ ok: boolean; url: string; model: string; key: string; codexUrl?: string; codexModel?: string }>
   onThinking(cb: (t: string) => void): () => void
 }
