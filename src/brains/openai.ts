@@ -26,6 +26,25 @@ export class OpenAIBrain implements Brain {
   ) {}
 
   async chat(messages: ChatMessage[], opts?: ChatOptions & { onDelta?: (t: string) => void; reasoningEffort?: string }): Promise<string> {
+    // transient failures (429/5xx/network) get two retries with backoff
+    let lastErr: unknown
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, 1000 * attempt * attempt))
+      }
+      try {
+        return await this.#chatOnce(messages, opts)
+      } catch (e) {
+        lastErr = e
+        const msg = String((e as Error)?.message ?? '')
+        const transient = (e as { status?: number }).status === undefined || [429, 500, 502, 503, 504].includes((e as { status?: number }).status!) || /fetch failed|network|timeout|ECONN/i.test(msg)
+        if (!transient) throw e
+      }
+    }
+    throw lastErr
+  }
+
+  async #chatOnce(messages: ChatMessage[], opts?: ChatOptions & { onDelta?: (t: string) => void; reasoningEffort?: string }): Promise<string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (this.apiKey) headers.Authorization = `Bearer ${this.apiKey}`
 
@@ -69,7 +88,9 @@ export class OpenAIBrain implements Brain {
 
     if (!res.ok) {
       const text = await res.text().catch(() => '')
-      throw new Error(`brain "${this.id}" HTTP ${res.status}: ${text.slice(0, 300)}`)
+      const err = new Error(`brain "${this.id}" HTTP ${res.status}: ${text.slice(0, 300)}`) as Error & { status?: number }
+      err.status = res.status
+      throw err
     }
 
     if (!stream || !res.body) {

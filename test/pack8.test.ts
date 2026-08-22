@@ -78,3 +78,10 @@ test('trimMessages: everything fits → untouched', () => {
   const out = trimMessages(msgs, 28_000)
   assert.deepEqual(out, msgs)
 })
+
+test('stripThink: reasoning blocks removed, clean text kept', async () => {
+  const { stripThink } = await import('../src/engine/strip-think.js')
+  assert.equal(stripThink('<think>мусор</think>Да, я тебя слышу.'), 'Да, я тебя слышу.')
+  assert.equal(stripThink('<think>незакрытый'), '')
+  assert.equal(stripThink('чистый ответ'), 'чистый ответ')
+})

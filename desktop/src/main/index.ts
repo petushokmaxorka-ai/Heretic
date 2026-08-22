@@ -206,6 +206,13 @@ ipcMain.handle(IPC.VOICE_STATUS, () => ({
 app.whenReady().then(() => {
   mkdirSync(VAULT_ROOT, { recursive: true })
   createWindow()
+  // CI e2e smoke: window up + 4s of life = exit 0
+  if (process.argv.includes('--smoke')) {
+    setTimeout(() => {
+      console.log('[smoke] window ready, exiting 0')
+      app.exit(0)
+    }, 4000)
+  }
   createTray()
   // Body bridge (read-only): the organism's ECG in the tray.
   watchCardia(CARDIA_JOURNAL, (b: CardiaBeat) => {
@@ -390,13 +397,14 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle(IPC.SESSION_RUN, async (_e, { task, brain, advisor, trust, root, workspace }: {
+  ipcMain.handle(IPC.SESSION_RUN, async (_e, { task, brain, advisor, advisors, trust, root, workspace }: {
     task: string
     brain: BrainConfig
     advisor?: BrainConfig
     trust: TrustMode
     root?: string
     workspace?: string
+    advisors?: BrainConfig[]
   }) => {
     if (sessionRunning) return { ok: false, error: 'session already running' }
     sessionRunning = true
@@ -417,8 +425,11 @@ app.whenReady().then(() => {
         onStep: (step: import('../../../src/protocol/types').Step) => send(IPC.SESSION_STEP, step),
         onThinking: (t: string) => send(IPC.SESSION_THINKING, { text: t })
       }
-      const result = advisor
-        ? await runCouncil(task, { brain: buildBrain(brain), advisors: [{ brain: buildBrain(advisor), role: 'advisor' }], ...base })
+      const council = advisor
+        ? [{ brain: buildBrain(advisor), role: 'advisor' }]
+        : (advisors ?? []).filter((a) => a.kind === 'echo' || a.url).map((a, i) => ({ brain: buildBrain(a), role: `advisor-${i + 1}` }))
+      const result = council.length
+        ? await runCouncil(task, { brain: buildBrain(brain), advisors: council, ...base })
         : await runAgent(task, { brain: buildBrain(brain), ...base })
       send(IPC.SESSION_FINAL, result)
       if (!win || win.isDestroyed() || !win.isVisible()) {

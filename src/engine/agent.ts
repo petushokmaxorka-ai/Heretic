@@ -22,6 +22,7 @@ import type {
 import { Sandbox } from '../tools/sandbox.js'
 import { previewFor } from './preview.js'
 import { trimMessages } from './ctx.js'
+import { stripThink } from './strip-think.js'
 
 const TOOL_FENCE = /```tool\s*([\s\S]*?)```/
 
@@ -114,10 +115,10 @@ export async function runAgent(task: string, opts: AgentOptions): Promise<AgentR
     }
     let reply: string
     try {
-      reply = await opts.brain.chat(trimMessages(messages), {
+      reply = stripThink(await opts.brain.chat(trimMessages(messages), {
         signal: opts.signal,
         onDelta: opts.onThinking
-      })
+      }))
     } catch (e) {
       if (opts.signal?.aborted) {
         emit({ index: ++index, kind: 'final', title: 'aborted', detail: 'stopped by user', verdict: 'rejected' })

@@ -9,6 +9,7 @@ import type { ThinkingLevel } from '../thinking.js'
 import { thinkingProfile } from '../thinking.js'
 import { webSearch, type SearchResult } from '../tools/search.js'
 import { trimMessages } from './ctx.js'
+import { stripThink } from './strip-think.js'
 
 export interface RunChatOptions {
   /** full conversation INCLUDING the latest user message */
@@ -68,13 +69,15 @@ export async function runChat(opts: RunChatOptions): Promise<ChatResult> {
       contextBlock
   }
 
-  const answer = await opts.brain.chat(trimMessages([system, ...history]), {
+  const answer = stripThink(
+    await opts.brain.chat(trimMessages([system, ...history]), {
     maxTokens: thinking.maxTokens,
     temperature: 0.4,
     onDelta: opts.onDelta,
     reasoningEffort: thinking.effort,
     signal: opts.signal
   })
+  )
 
   return { answer, sources }
 }

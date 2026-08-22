@@ -44,7 +44,7 @@ interface StopApi extends PersonaApi {
 }
 
 interface HereticApi extends ChatApi, StopApi {
-  runSession(task: string, brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }, trust: string, advisor?: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }): Promise<{ ok: boolean; error?: string }>
+  runSession(task: string, brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }, trust: string, advisor?: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }, advisors?: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }[]): Promise<{ ok: boolean; error?: string }>
   scanBrains(): Promise<{ name: string; baseUrl: string; models: string[]; residents?: string[] }[]>
   decideApproval(id: number, ok: boolean): Promise<void>
   onStep(cb: (s: StepView) => void): () => void
@@ -248,17 +248,23 @@ $('ignite').addEventListener('click', () => {
     selected.kind === 'echo' ? 'echo · demo' : `${selected.model ?? 'custom'}`
 
   let advisor: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string } | undefined
+  let advisors: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }[] | undefined
   if (councilBox.checked) {
     const aUrl = ($('a-url') as HTMLInputElement).value.trim()
+    const aModel = ($('a-model') as HTMLInputElement).value.trim()
+    const aKey = ($('a-key') as HTMLInputElement).value.trim()
     advisor =
       !aUrl || aUrl === 'echo'
         ? { kind: 'echo' }
-        : {
-            kind: 'openai',
-            url: aUrl,
-            model: ($('a-model') as HTMLInputElement).value.trim() || 'default',
-            key: ($('a-key') as HTMLInputElement).value.trim() || undefined
-          }
+        : { kind: 'openai', url: aUrl, model: aModel || 'default', key: aKey || undefined }
+    // multi-advisor: a-model accepts comma-separated model ids on the same endpoint
+    if (aUrl && aUrl !== 'echo' && aModel.includes(',')) {
+      advisors = aModel
+        .split(',')
+        .map((mm) => mm.trim())
+        .filter(Boolean)
+        .map((mm) => ({ kind: 'openai' as const, url: aUrl, model: mm, key: aKey || undefined }))
+    }
   }
 
   running = true
@@ -270,7 +276,7 @@ $('ignite').addEventListener('click', () => {
   ledgerCard(
     `<div class="status-chip">session start · trust=${($('trust') as HTMLSelectElement).value}${advisor ? ' · council' : ''}</div>`
   )
-  void api.runSession(task, selected, ($('trust') as HTMLSelectElement).value, advisor).then(() => {
+  void api.runSession(task, selected, ($('trust') as HTMLSelectElement).value, advisor, advisors).then(() => {
     igniteBtn.textContent = '◆'
     igniteBtn.title = 'ignite'
     igniteBtn.classList.remove('stopping')
@@ -618,7 +624,21 @@ const loadSessions = (): StoredSession[] => {
     return []
   }
 }
-const saveSessions = (all: StoredSession[]): void => localStorage.setItem('heretic-sessions', JSON.stringify(all.slice(-20)))
+const saveSessions = (all: StoredSession[]): void => {
+  let payload = JSON.stringify(all.slice(-20))
+  try {
+    localStorage.setItem('heretic-sessions', payload)
+  } catch {
+    // quota exceeded — drop the oldest half and retry once
+    const half = all.slice(-Math.max(4, Math.floor(all.length / 2)))
+    payload = JSON.stringify(half)
+    try {
+      localStorage.setItem('heretic-sessions', payload)
+    } catch {
+      // give up silently — sessions are a convenience, never a crash
+    }
+  }
+}
 
 let currentSessionId: string | null = null
 
