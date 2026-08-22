@@ -309,8 +309,7 @@ $('ignite').addEventListener('click', () => {
     const key = ($('c-key') as HTMLInputElement).value.trim()
     selected = { kind: 'openai', url, model: model || 'default', key: key || undefined }
   }
-  ;($('brain-label') as HTMLElement).textContent =
-    selected.kind === 'echo' ? 'echo · demo' : `${selected.model ?? 'custom'}`
+  setBrainStatus(selected.kind === 'echo' ? 'echo · демо' : selected.model ?? 'custom', selected.kind !== 'echo')
 
   let advisor: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string } | undefined
   let advisors: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }[] | undefined
