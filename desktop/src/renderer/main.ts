@@ -13,7 +13,7 @@ interface StepView {
 }
 
 interface AutoApi {
-  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean; persona?: string; images?: string[]; codexUrl?: string; codexModel?: string; workspace?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string; tokens?: number; local?: boolean }>
+  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean; persona?: string; images?: string[]; codexUrl?: string; codexModel?: string; workspace?: string; councilModels?: string[] }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string; tokens?: number; local?: boolean; replies?: { model: string; answer: string }[] }>
 }
 
 interface ChatApi extends AutoApi {
@@ -103,6 +103,41 @@ void api.avatarDataUrl().then((a) => {
   inject(document.querySelector('.sidebar .avatar') as HTMLElement)
   inject(document.querySelector('.header .avatar') as HTMLElement)
 })
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+    e.preventDefault()
+    $('new-chat').click()
+  }
+})
+
+// ── council panel (DIALOGUS TEAM reborn) ─────────────────
+const renderCouncilList = (): void => {
+  const box = $('council-list')
+  const chip = $('model-chip') as HTMLSelectElement
+  const models = [...chip.options].map((o) => o.value).filter(Boolean)
+  box.innerHTML = ''
+  if (!models.length) {
+    box.innerHTML = '<div class="council-item" style="color:var(--dm-muted);cursor:default;">— scan для списка —</div>'
+    return
+  }
+  for (const mm of models) {
+    const label = document.createElement('label')
+    label.className = 'council-item'
+    const cb = document.createElement('input')
+    cb.type = 'checkbox'
+    cb.value = mm
+    const span = document.createElement('span')
+    span.textContent = mm
+    label.appendChild(cb)
+    label.appendChild(span)
+    box.appendChild(label)
+  }
+}
+
+const councilSelection = (): string[] => {
+  return [...document.querySelectorAll<HTMLInputElement>('#council-list input:checked')].map((i) => i.value)
+}
 
 // ── toggle buttons: DIALOGUS active state ────────────────
 const syncToggle = (id: string): void => {
@@ -225,6 +260,7 @@ const autoConnect = async (): Promise<void> => {
     chip.innerHTML = h.models
       .map((mm) => `<option value="${mm}">${res.includes(mm) ? '◉' : '○'} ${mm}</option>`)
       .join('')
+    renderCouncilList()
     chip.value = model
   } catch {
     setBrainStatus('echo · демо', false)
@@ -302,10 +338,11 @@ api.onFinal((r) => {
   }
   const btn = $('sendbtn-ignite') ?? $('ignite')
   btn.textContent = '◆'
+  const esc = (t: string): string => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   ledgerCard(
     r.ok
-      ? `<div class="final-card">${r.final}</div>`
-      : `<div class="final-card" style="border-left-color:var(--dm-red-text);">✗ ${r.final || 'session ended without a verified final answer'}</div>`
+      ? `<div class="final-card">${mdToHtml(r.final) || esc(r.final)}</div>`
+      : `<div class="final-card" style="border-left-color:var(--dm-red-text);">✗ ${esc(r.final || 'session ended without a verified final answer')}</div>`
   )
 })
 api.onApproval((req) => {
@@ -366,6 +403,7 @@ const runScan = (): void => {
       chip.innerHTML = h.models
         .map((m) => `<option value="${m}" ${h.residents?.includes(m) ? 'data-res="1"' : ''}>${h.residents?.includes(m) ? '◉' : '○'} ${m}</option>`)
         .join('')
+    renderCouncilList()
       const firstRes = h.models.find((m) => h.residents?.includes(m))
       if (firstRes) chip.value = firstRes
     }
@@ -636,6 +674,7 @@ const dispatch = (images: string[]): void => {
       auto: ($('auto') as HTMLInputElement).checked,
       persona: persona || undefined,
       images: images.length ? images : undefined,
+      councilModels: councilSelection().length >= 2 ? councilSelection() : undefined,
       codexUrl: ($('cx-url') as HTMLInputElement).value.trim() || undefined,
       codexModel: ($('cx-model') as HTMLInputElement).value.trim() || undefined,
       workspace: ($('ws-path') as HTMLInputElement).value.trim() || undefined
@@ -649,11 +688,19 @@ const dispatch = (images: string[]): void => {
         streamTarget = null
         return
       }
-      if (!streamText && r.answer) {
+      if (r.kind === 'council' && r.replies?.length) {
+        streamTarget!.closest('.msg')?.remove()
+        for (const reply of r.replies) {
+          const body = aiMessage()
+          const nameEl = body.closest('.msg')?.querySelector('.msg-header-left')
+          if (nameEl) nameEl.textContent += ` · ${reply.model}`
+          body.innerHTML = mdToHtml(reply.answer) || ''
+        }
+      } else if (!streamText && r.answer) {
         streamTarget!.textContent =
           r.kind === 'agent' ? `${r.ok ? '⚙ session complete' : '✗ no verified final answer'}\n\n${r.answer}` : r.answer
       }
-      if (r.answer) streamTarget!.innerHTML = mdToHtml(r.answer) || streamTarget!.innerHTML
+      if (r.kind !== 'council' && r.answer) streamTarget!.innerHTML = mdToHtml(r.answer) || streamTarget!.innerHTML
       if (r.sources.length) {
         const box = document.createElement('div')
         box.className = 'sources'
@@ -668,7 +715,7 @@ const dispatch = (images: string[]): void => {
         else tokCloud += r.tokens
         renderTokens()
       }
-      chatHistory.push({ role: 'assistant', content: r.answer })
+      chatHistory.push({ role: 'assistant', content: r.kind === 'council' ? (r.replies ?? []).map((x) => `[${x.model}] ${x.answer}`).join('\n\n---\n\n') : r.answer })
       persistCurrentSession()
       streamTarget = null
     })
@@ -926,6 +973,8 @@ void (async () => {
   }
   refreshBrainStatus()
   await autoConnect()
+  const last = [...loadSessions()].sort((a, b) => b.updated - a.updated)[0]
+  if (last && last.history.length) restoreSession(last.id)
 })()
 
 const persistBrains = (): void => {

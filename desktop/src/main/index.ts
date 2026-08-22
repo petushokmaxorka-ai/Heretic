@@ -31,7 +31,7 @@ import { createBrowserTool } from './browser-tool'
 import { initUpdater } from './updater'
 import { watchCardia, type CardiaBeat } from '../../../src/engine/cardia'
 import { IPC, type BrainConfig, type TrustMode, type ChatRequestPayload, type AutoRequestPayload } from '../shared/ipc'
-import { runChat } from '../../../src/engine/chat'
+import { runChat, runCouncilChat } from '../../../src/engine/chat'
 import { observe } from '../../../src/engine/observe'
 import { webSearchTool } from '../../../src/tools/search'
 import { codeSearch } from '../../../src/tools/code'
@@ -91,9 +91,17 @@ function send(channel: string, payload: unknown): void {
 }
 
 function createWindow(): void {
+  let bounds: { width: number; height: number; x?: number; y?: number } = { width: 980, height: 720 }
+  try {
+    bounds = JSON.parse(readFileSync(join(app.getPath('userData'), 'bounds.json'), 'utf-8')) as typeof bounds
+  } catch {
+    // first run — defaults
+  }
   win = new BrowserWindow({
-    width: 980,
-    height: 720,
+    width: bounds.width,
+    height: bounds.height,
+    x: bounds.x,
+    y: bounds.y,
     backgroundColor: '#f6f7f9',
     title: 'Heretic',
     icon: join(process.resourcesPath ?? join(__dirname, '../..'), 'icons', '256.png'),
@@ -105,7 +113,12 @@ function createWindow(): void {
     }
   })
   win.on('close', (e) => {
-    // Close-to-tray: the shell survives, the organism keeps ticking.
+    // Close-to-tray + remember bounds for the next launch.
+    try {
+      writeFileSync(join(app.getPath('userData'), 'bounds.json'), JSON.stringify(win!.getNormalBounds()), 'utf-8')
+    } catch {
+      // bounds are a convenience
+    }
     e.preventDefault()
     win?.hide()
   })
@@ -131,6 +144,7 @@ function summon(): void {
 function createTray(): void {
   tray = new Tray(trayIcon())
   tray.setToolTip('◆ HERETIC — idle')
+  tray.on('click', summon)
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: '◆ Summon (Alt+Space)', click: summon },
@@ -418,6 +432,29 @@ app.whenReady().then(() => {
         payload.brain.kind === 'openai' && payload.codexUrl
           ? { kind: 'openai', url: payload.codexUrl, model: payload.codexModel || 'default', key: payload.brain.key }
           : undefined
+      if (payload.councilModels && payload.councilModels.length >= 2 && mode === 'chat') {
+        const url = payload.brain.url ?? 'http://127.0.0.1:11436/'
+        const key = payload.brain.key
+        const members = payload.councilModels.slice(0, 4).map((model) => ({
+          model,
+          brain: buildBrain({ kind: 'openai', url, model, key })
+        }))
+        const r = await runCouncilChat({
+          history: payload.history,
+          members,
+          thinking,
+          web,
+          persona: payload.persona,
+          images: payload.images,
+          searxng: web ? (await getSearxng()) ?? undefined : undefined,
+          signal: chatAbort.signal,
+          onStatus: (line) => send(IPC.CHAT_STATUS, { line })
+        })
+        const tokens =
+          Math.ceil(payload.history.reduce((n, h) => n + h.content.length, 0) / 4) * members.length +
+          Math.ceil(r.replies.reduce((n, x) => n + x.answer.length, 0) / 4)
+        return { kind: 'council', answer: '', sources: r.sources, replies: r.replies, tokens, local: true }
+      }
       if (mode === 'agent' && codexBrain) {
         send(IPC.CHAT_STATUS, { line: 'observe: codex brain — ' + (codexBrain.model ?? '') })
         const r = await runAgent(lastUser, {

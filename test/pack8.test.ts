@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { vaultRemember, vaultRecall } from '../src/tools/vault.js'
 import { estimateTokens, trimMessages } from '../src/engine/ctx.js'
-import type { ChatMessage } from '../src/protocol/types.js'
+import type { ChatMessage, Brain } from '../src/protocol/types.js'
+import { EchoBrain } from '../src/brains/echo.js'
 
 let dir: string
 test.beforeEach(() => {
@@ -84,4 +85,37 @@ test('stripThink: reasoning blocks removed, clean text kept', async () => {
   assert.equal(stripThink('<think>мусор</think>Да, я тебя слышу.'), 'Да, я тебя слышу.')
   assert.equal(stripThink('<think>незакрытый'), '')
   assert.equal(stripThink('чистый ответ'), 'чистый ответ')
+})
+
+test('runCouncilChat: every member answers, labeled, sequential statuses', async () => {
+  const { runCouncilChat } = await import('../src/engine/chat.js')
+  const mk = (id: string): { brain: Brain; model: string } => ({
+    model: id,
+    brain: { id, label: id, chat: async (): Promise<string> => `ответ от ${id}` }
+  })
+  const statuses: string[] = []
+  const r = await runCouncilChat({
+    history: [{ role: 'user', content: 'вопрос' }],
+    members: [mk('alpha'), mk('beta')],
+    onStatus: (l) => statuses.push(l)
+  })
+  assert.equal(r.replies.length, 2)
+  assert.equal(r.replies[0]!.model, 'alpha')
+  assert.match(r.replies[0]!.answer, /alpha/)
+  assert.match(r.replies[1]!.answer, /beta/)
+  assert.ok(statuses.some((s) => s.includes('alpha думает')))
+  assert.ok(statuses.some((s) => s.includes('2 ответ')))
+})
+
+test('runCouncilChat: dead member degrades to labeled error, others answer', async () => {
+  const { runCouncilChat } = await import('../src/engine/chat.js')
+  const r = await runCouncilChat({
+    history: [{ role: 'user', content: 'q' }],
+    members: [
+      { model: 'dead', brain: { id: 'd', label: 'd', chat: async (): Promise<string> => { throw new Error('connection refused') } } },
+      { model: 'alive', brain: new EchoBrain(['жив']) }
+    ]
+  })
+  assert.match(r.replies[0]!.answer, /connection refused/)
+  assert.equal(r.replies[1]!.answer, 'жив')
 })

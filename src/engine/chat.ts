@@ -81,3 +81,35 @@ export async function runChat(opts: RunChatOptions): Promise<ChatResult> {
 
   return { answer, sources }
 }
+
+// ═══════════════════════════════════════════════════════════
+// Council chat — several brains answer the same message,
+// each reply labeled by model. Sequential, visible, honest.
+// ═══════════════════════════════════════════════════════════
+
+export interface CouncilChatReply {
+  model: string
+  answer: string
+}
+
+export async function runCouncilChat(
+  opts: Omit<RunChatOptions, 'brain'> & { members: { brain: Brain; model: string }[] }
+): Promise<{ replies: CouncilChatReply[]; sources: SearchResult[] }> {
+  const { members, ...base } = opts
+  const replies: CouncilChatReply[] = []
+  let sources: SearchResult[] = []
+  let first = true
+  for (const m of members) {
+    base.onStatus?.(`совет: ${m.model} думает…`)
+    try {
+      const r = await runChat({ ...base, brain: m.brain, web: first && base.web })
+      replies.push({ model: m.model, answer: r.answer })
+      if (first) sources = r.sources
+    } catch (e) {
+      replies.push({ model: m.model, answer: `✗ ${(e as Error).message}` })
+    }
+    first = false
+  }
+  base.onStatus?.(`совет: ${replies.length} ответ(ов)`)
+  return { replies, sources }
+}

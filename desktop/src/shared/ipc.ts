@@ -65,6 +65,7 @@ export interface AutoRequestPayload {
   images?: string[]
   codexUrl?: string
   codexModel?: string
+  councilModels?: string[]
 }
 
 export interface StoredBrain {

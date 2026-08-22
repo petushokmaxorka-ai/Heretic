@@ -8,7 +8,7 @@ const api = {
     ipcRenderer.invoke(IPC.SESSION_RUN, { task, brain, advisor, trust }),
   scanBrains: (): Promise<{ name: string; baseUrl: string; models: string[]; residents: string[] }[]> =>
     ipcRenderer.invoke(IPC.BRAINS_SCAN),
-  autoSend: (payload: AutoRequestPayload & { persona?: string; images?: string[]; codexUrl?: string; codexModel?: string; workspace?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string; tokens?: number; local?: boolean }> =>
+  autoSend: (payload: AutoRequestPayload & { persona?: string; images?: string[]; codexUrl?: string; codexModel?: string; workspace?: string; councilModels?: string[] }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string; tokens?: number; local?: boolean; replies?: { model: string; answer: string }[] }> =>
     ipcRenderer.invoke(IPC.AUTO_SEND, payload),
   chatSend: (payload: ChatRequestPayload): Promise<{ answer: string; sources: { title: string; url: string; snippet: string }[]; error?: string }> =>
     ipcRenderer.invoke(IPC.CHAT_SEND, payload),

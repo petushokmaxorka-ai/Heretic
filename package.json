@@ -1,6 +1,6 @@
 {
   "name": "heretic",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "HERETIC \u2014 local-first agentic desktop engine. Small local brain + strong verification + cloud escalation. Anathemetron lives inside.",
   "type": "module",
   "license": "MIT",
