@@ -30,6 +30,11 @@ import { memoriaQuery, servicesHealth } from './tools/organs.js'
 import { gitTools } from './tools/git.js'
 import { sysInfo } from './tools/sys.js'
 import { shellBgTools } from './tools/shell-bg.js'
+import { netTools } from './tools/net.js'
+import { procTextTools } from './tools/proc-text.js'
+import { cryptoExtraTools } from './tools/crypto-extra.js'
+import { infoTools } from './tools/info.js'
+import { organExtraTools } from './tools/organs-extra.js'
 import { askUser, makeSubtaskTool } from './tools/agent-extra.js'
 import { isThinkingLevel, type ThinkingLevel } from './thinking.js'
 import type { ApprovalPolicy, Brain, Step } from './protocol/types.js'
@@ -190,6 +195,11 @@ async function main(): Promise<number> {
   ...gitTools,
   sysInfo,
   ...shellBgTools,
+  ...netTools,
+  ...procTextTools,
+  ...cryptoExtraTools,
+  ...infoTools,
+  ...organExtraTools,
   askUser
 ])
 

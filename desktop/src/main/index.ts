@@ -42,6 +42,11 @@ import { memoriaQuery, servicesHealth } from '../../../src/tools/organs'
 import { gitTools } from '../../../src/tools/git'
 import { sysInfo } from '../../../src/tools/sys'
 import { utilTools } from '../../../src/tools/util'
+import { netTools } from '../../../src/tools/net'
+import { procTextTools } from '../../../src/tools/proc-text'
+import { cryptoExtraTools } from '../../../src/tools/crypto-extra'
+import { infoTools } from '../../../src/tools/info'
+import { organExtraTools } from '../../../src/tools/organs-extra'
 import { connectMcp, stopFleet, type McpFleet } from '../../../src/mcp/manager'
 import { discoverSearxng } from '../../../src/discovery'
 
@@ -145,6 +150,11 @@ function buildTools(): import('../../../src/protocol/types').Tool[] {
     ...gitTools,
     sysInfo,
     ...utilTools,
+    ...netTools,
+    ...procTextTools,
+    ...cryptoExtraTools,
+    ...infoTools,
+    ...organExtraTools,
     ...(mcpFleet?.tools ?? []),
     createBrowserTool(() => win),
     ...desktopOrgans()
