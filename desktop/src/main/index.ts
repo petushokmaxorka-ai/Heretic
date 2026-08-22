@@ -48,6 +48,8 @@ import { cryptoExtraTools } from '../../../src/tools/crypto-extra'
 import { infoTools } from '../../../src/tools/info'
 import { organExtraTools } from '../../../src/tools/organs-extra'
 import { deepTools } from '../../../src/tools/deep'
+import { swissTools } from '../../../src/tools/swiss'
+import { ttsTools } from '../../../src/tools/tts'
 import { connectMcp, stopFleet, type McpFleet } from '../../../src/mcp/manager'
 import { discoverSearxng } from '../../../src/discovery'
 
@@ -157,6 +159,8 @@ function buildTools(): import('../../../src/protocol/types').Tool[] {
     ...infoTools,
     ...organExtraTools,
     ...deepTools,
+    ...swissTools,
+    ...ttsTools,
     ...(mcpFleet?.tools ?? []),
     createBrowserTool(() => win),
     ...desktopOrgans()
