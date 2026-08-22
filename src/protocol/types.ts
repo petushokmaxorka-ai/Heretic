@@ -54,6 +54,8 @@ export interface ToolContext {
   sandboxRoot: string
   /** persistent memory location — userData on desktop, survives reboots */
   vaultRoot?: string
+  /** ask the human a question mid-session (HITL) */
+  ask?: (question: string, options?: string[]) => Promise<string>
 }
 
 export interface Tool {

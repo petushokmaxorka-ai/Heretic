@@ -29,6 +29,8 @@ import { llamaStatusTool, getResidents, pickResident } from './tools/llama.js'
 import { memoriaQuery, servicesHealth } from './tools/organs.js'
 import { gitTools } from './tools/git.js'
 import { sysInfo } from './tools/sys.js'
+import { shellBgTools } from './tools/shell-bg.js'
+import { askUser, makeSubtaskTool } from './tools/agent-extra.js'
 import { isThinkingLevel, type ThinkingLevel } from './thinking.js'
 import type { ApprovalPolicy, Brain, Step } from './protocol/types.js'
 
@@ -186,7 +188,9 @@ async function main(): Promise<number> {
   memoriaQuery,
   servicesHealth,
   ...gitTools,
-  sysInfo
+  sysInfo,
+  ...shellBgTools,
+  askUser
 ])
 
   if (chatMode) {
@@ -216,7 +220,7 @@ async function main(): Promise<number> {
         const v = observe(task)
         console.log(`${C.dim}⚙ observe: ${v.mode}${v.web ? ' · web' : ''} · ${v.thinking} (${v.reasons.join(', ')})${C.off}`)
         if (v.mode === 'agent') {
-          const r = await runAgent(task, { brain, tools, sandbox: new Sandbox(root), policy: autoAllow, maxSteps: 8 })
+          const r = await runAgent(task, { brain, tools: [...tools, makeSubtaskTool({ brain, tools, sandbox: new Sandbox(root), policy: autoAllow })], sandbox: new Sandbox(root), policy: autoAllow, maxSteps: 8, ask: async (question) => { console.log(`${C.gold}?${C.off} ${question}`); const rlAsk = createInterface({ input: process.stdin, output: process.stdout }); try { return await rlAsk.question('> ') } finally { rlAsk.close() } } })
           console.log(`\n${C.crimson}◆${C.off} ${r.final || '(no final answer)'}`)
           return r.ok ? 0 : 1
         }
@@ -245,7 +249,7 @@ async function main(): Promise<number> {
           console.log(`${C.dim}⚙ observe: ${v.mode}${v.web ? ' · web' : ''} · ${v.thinking} (${v.reasons.join(', ')})${C.off}`)
           if (v.mode === 'agent') {
             history.push({ role: 'user', content: q })
-            const r = await runAgent(q, { brain, tools, sandbox: new Sandbox(root), policy: autoAllow, maxSteps: 8 })
+            const r = await runAgent(q, { brain, tools: [...tools, makeSubtaskTool({ brain, tools, sandbox: new Sandbox(root), policy: autoAllow })], sandbox: new Sandbox(root), policy: autoAllow, maxSteps: 8, ask: async (question, options) => { const rlAsk = createInterface({ input: process.stdin, output: process.stdout }); try { if (options?.length) { console.log(`${C.gold}?${C.off} ${question} ${C.dim}[${options.join('/')} | свободный ответ]${C.off}`); } else console.log(`${C.gold}?${C.off} ${question}`); return await rlAsk.question('> ') } finally { rlAsk.close() } } })
             const final = r.final || '(no final answer)'
             history.push({ role: 'assistant', content: final })
             console.log(`${C.teal}◆${C.off} ${final}\n${C.dim}[${brain.id} · agent]${C.off}\n`)

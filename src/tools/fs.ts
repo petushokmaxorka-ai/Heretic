@@ -20,7 +20,16 @@ export const fsRead: Tool = {
       const path = String(args.path ?? '')
       if (!path) return { ok: false, output: 'fs.read: args.path required' }
       const raw = await readFile(sb(ctx).resolve(path), 'utf-8')
-      return { ok: true, output: raw.length > MAX_READ ? raw.slice(0, MAX_READ) + '\n[truncated]' : raw }
+      const offset = Math.max(0, Number(args.offset ?? 0) || 0)
+      const rawLimit = Number(args.limit ?? 0) || 0
+      const limit = rawLimit ? Math.max(1, Math.min(2000, rawLimit)) : 0
+      let text = raw
+      if (offset || limit) {
+        const lines = text.split('\n')
+        const slice = limit ? lines.slice(offset, offset + limit) : lines.slice(offset)
+        text = slice.join('\n') + `\n[lines ${offset}-${offset + slice.length} of ${lines.length}]`
+      }
+      return { ok: true, output: text.length > MAX_READ ? text.slice(0, MAX_READ) + '\n[truncated]' : text }
     } catch (e) {
       return { ok: false, output: `fs.read failed: ${(e as Error).message}` }
     }

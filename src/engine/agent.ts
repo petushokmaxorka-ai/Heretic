@@ -43,6 +43,8 @@ export interface AgentOptions {
   persona?: string
   /** persistent vault location (userData) — memory survives reboots */
   vaultRoot?: string
+  /** ask the human mid-session */
+  ask?: (question: string, options?: string[]) => Promise<string>
 }
 
 export interface AgentResult {
@@ -102,7 +104,7 @@ export async function runAgent(task: string, opts: AgentOptions): Promise<AgentR
   }
 
   let malformedStreak = 0
-  const ctx: ToolContext = { sandboxRoot: opts.sandbox.root, vaultRoot: opts.vaultRoot }
+  const ctx: ToolContext = { sandboxRoot: opts.sandbox.root, vaultRoot: opts.vaultRoot, ask: opts.ask }
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt(opts.tools, opts.sandbox.root, opts.persona) },
     { role: 'user', content: task }
