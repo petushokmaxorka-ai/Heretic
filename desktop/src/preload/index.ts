@@ -12,8 +12,8 @@ const api = {
     ipcRenderer.invoke(IPC.AUTO_SEND, payload),
   chatSend: (payload: ChatRequestPayload): Promise<{ answer: string; sources: { title: string; url: string; snippet: string }[]; error?: string }> =>
     ipcRenderer.invoke(IPC.CHAT_SEND, payload),
-  onChatDelta: (cb: (d: string) => void): (() => void) => {
-    const h = (_e: unknown, v: { delta: string }): void => cb(v.delta)
+  onChatDelta: (cb: (d: string, model?: string) => void): (() => void) => {
+    const h = (_e: unknown, v: { delta: string; model?: string }): void => cb(v.delta, v.model)
     ipcRenderer.on(IPC.CHAT_DELTA, h)
     return () => ipcRenderer.removeListener(IPC.CHAT_DELTA, h)
   },
@@ -37,6 +37,10 @@ const api = {
   pickDocs: (): Promise<{ ok: boolean; copied: string[] }> => ipcRenderer.invoke(IPC.DOC_PICK),
   saveNote: (title: string, text: string): Promise<{ ok: boolean; path: string }> => ipcRenderer.invoke(IPC.NOTE_SAVE, { title, text }),
   addTask: (text: string): Promise<{ ok: boolean; path: string }> => ipcRenderer.invoke(IPC.TASK_ADD, text),
+  exportChat: (history: { role: string; content: string }[]): Promise<{ ok: boolean; path: string }> =>
+    ipcRenderer.invoke(IPC.CHAT_EXPORT, history),
+  brainPing: (cfg: { url?: string; model?: string; key?: string }): Promise<{ ok: boolean; ms: number; answer: string }> =>
+    ipcRenderer.invoke(IPC.BRAIN_PING, cfg),
   voiceTranscribe: (dataB64: string, mime: string): Promise<{ ok: boolean; text: string; error?: string }> =>
     ipcRenderer.invoke(IPC.VOICE_TRANSCRIBE, { dataB64, mime }),
   onCardia: (cb: (b: { cycle: number; lobe: 'A' | 'B'; lobeName: string }) => void): (() => void) => {

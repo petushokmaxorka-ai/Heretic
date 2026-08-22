@@ -310,6 +310,37 @@ app.whenReady().then(() => {
     }
   })
 
+  ipcMain.handle(IPC.CHAT_EXPORT, async (_e, history: { role: string; content: string }[]) => {
+    const r = await dialog.showSaveDialog(win ?? new BrowserWindow({ show: false }), {
+      title: 'Export dialog as markdown',
+      defaultPath: join(app.getPath('downloads'), `heretic-dialog-${new Date().toISOString().slice(0, 10)}.md`),
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+    if (r.canceled || !r.filePath) return { ok: false, path: '' }
+    const md = history
+      .map((h) => (h.role === 'user' ? `## ◆ ПРИНЦИПАЛ\n\n${h.content}\n` : `## ◆ ANATHEMETRON\n\n${h.content}\n`))
+      .join('\n---\n\n')
+    writeFileSync(r.filePath, `# HERETIC · диалог\n\n${md}\n`, 'utf-8')
+    return { ok: true, path: r.filePath }
+  })
+
+  ipcMain.handle(IPC.BRAIN_PING, async (_e, cfg: { url?: string; model?: string; key?: string }) => {
+    const t0 = Date.now()
+    try {
+      const brain = new OpenAIBrain('ping', 'ping', cfg.url ?? 'http://127.0.0.1:11436/', cfg.model ?? 'default', cfg.key)
+      const answer = await brain.chat(
+        [
+          { role: 'system', content: 'Reply with the single word: pong' },
+          { role: 'user', content: 'ping' }
+        ],
+        { maxTokens: 8, temperature: 0 }
+      )
+      return { ok: true, ms: Date.now() - t0, answer: answer.slice(0, 40) }
+    } catch (e) {
+      return { ok: false, ms: Date.now() - t0, answer: (e as Error).message.slice(0, 120) }
+    }
+  })
+
   ipcMain.handle(IPC.WORKSPACE_PICK, async () => {
     const r = await dialog.showOpenDialog(win ?? new BrowserWindow({ show: false }), {
       title: 'Workspace folder (persistent agent sandbox)',
@@ -448,7 +479,8 @@ app.whenReady().then(() => {
           images: payload.images,
           searxng: web ? (await getSearxng()) ?? undefined : undefined,
           signal: chatAbort.signal,
-          onStatus: (line) => send(IPC.CHAT_STATUS, { line })
+          onStatus: (line) => send(IPC.CHAT_STATUS, { line }),
+          onMemberDelta: (model, text) => send(IPC.CHAT_DELTA, { delta: text, model })
         })
         const tokens =
           Math.ceil(payload.history.reduce((n, h) => n + h.content.length, 0) / 4) * members.length +
@@ -461,6 +493,7 @@ app.whenReady().then(() => {
           brain: buildBrain(codexBrain),
           persona: payload.persona,
           vaultRoot: VAULT_ROOT,
+          onThinking: (t) => send(IPC.CHAT_STATUS, { line: '◈ ' + t.slice(-180) }),
           tools: buildTools(),
           sandbox: new Sandbox(join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)),
           policy: policyFor(payload.trust),

@@ -119,3 +119,29 @@ test('runCouncilChat: dead member degrades to labeled error, others answer', asy
   assert.match(r.replies[0]!.answer, /connection refused/)
   assert.equal(r.replies[1]!.answer, 'жив')
 })
+
+test('runCouncilChat: per-member live deltas with model labels', async () => {
+  const { runCouncilChat } = await import('../src/engine/chat.js')
+  const deltas: string[] = []
+  const mk = (id: string): { model: string; brain: Brain } => ({
+    model: id,
+    brain: {
+      id,
+      label: id,
+      chat: async (_m, opts): Promise<string> => {
+        opts?.onDelta?.(`токен-${id}-1 `)
+        opts?.onDelta?.(`токен-${id}-2`)
+        return `финал ${id}`
+      }
+    }
+  })
+  const r = await runCouncilChat({
+    history: [{ role: 'user', content: 'q' }],
+    members: [mk('a'), mk('b')],
+    onMemberDelta: (model, text) => deltas.push(`${model}:${text}`)
+  })
+  assert.equal(r.replies.length, 2)
+  assert.ok(deltas.includes('a:токен-a-1 '))
+  assert.ok(deltas.includes('b:токен-b-2'))
+  assert.deepEqual(deltas.filter((d) => d.startsWith('a:')), ['a:токен-a-1 ', 'a:токен-a-2'], 'member order preserved')
+})

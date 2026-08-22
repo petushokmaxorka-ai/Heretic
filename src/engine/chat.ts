@@ -93,16 +93,25 @@ export interface CouncilChatReply {
 }
 
 export async function runCouncilChat(
-  opts: Omit<RunChatOptions, 'brain'> & { members: { brain: Brain; model: string }[] }
+  opts: Omit<RunChatOptions, 'brain'> & {
+    members: { brain: Brain; model: string }[]
+    /** live per-member token stream (council feels alive) */
+    onMemberDelta?: (model: string, text: string) => void
+  }
 ): Promise<{ replies: CouncilChatReply[]; sources: SearchResult[] }> {
-  const { members, ...base } = opts
+  const { members, onMemberDelta, ...base } = opts
   const replies: CouncilChatReply[] = []
   let sources: SearchResult[] = []
   let first = true
   for (const m of members) {
     base.onStatus?.(`совет: ${m.model} думает…`)
     try {
-      const r = await runChat({ ...base, brain: m.brain, web: first && base.web })
+      const r = await runChat({
+        ...base,
+        brain: m.brain,
+        web: first && base.web,
+        onDelta: onMemberDelta ? (t) => onMemberDelta(m.model, t) : undefined
+      })
       replies.push({ model: m.model, answer: r.answer })
       if (first) sources = r.sources
     } catch (e) {
