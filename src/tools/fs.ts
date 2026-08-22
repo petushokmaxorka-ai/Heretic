@@ -1,6 +1,6 @@
 // fs tools — sandboxed read / write (with diff) / list.
 
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { Tool, ToolContext, ToolResult } from '../protocol/types.js'
 import { Sandbox, lineDiff } from './sandbox.js'
@@ -116,4 +116,72 @@ export const fsEdit: Tool = {
   }
 }
 
-export const fsTools: Tool[] = [fsRead, fsWrite, fsList, fsEdit]
+export const fsMove: Tool = {
+  name: 'fs.move',
+  description: 'Move/rename a file or directory inside the sandbox.',
+  mutating: true,
+  async run(args, ctx): Promise<ToolResult> {
+    try {
+      const from = String(args.from ?? '')
+      const to = String(args.to ?? '')
+      if (!from || !to) return { ok: false, output: 'fs.move: args.from and args.to required' }
+      const box = sb(ctx)
+      await rename(box.resolve(from), box.resolve(to))
+      return { ok: true, output: `moved ${from} -> ${to}` }
+    } catch (e) {
+      return { ok: false, output: `fs.move failed: ${(e as Error).message}` }
+    }
+  }
+}
+
+export const fsCopy: Tool = {
+  name: 'fs.copy',
+  description: 'Copy a file inside the sandbox.',
+  mutating: true,
+  async run(args, ctx): Promise<ToolResult> {
+    try {
+      const from = String(args.from ?? '')
+      const to = String(args.to ?? '')
+      if (!from || !to) return { ok: false, output: 'fs.copy: args.from and args.to required' }
+      const box = sb(ctx)
+      await copyFile(box.resolve(from), box.resolve(to))
+      return { ok: true, output: `copied ${from} -> ${to}` }
+    } catch (e) {
+      return { ok: false, output: `fs.copy failed: ${(e as Error).message}` }
+    }
+  }
+}
+
+export const fsDelete: Tool = {
+  name: 'fs.delete',
+  description: 'Delete a file inside the sandbox (SKULL watches for destructive patterns).',
+  mutating: true,
+  async run(args, ctx): Promise<ToolResult> {
+    try {
+      const path = String(args.path ?? '')
+      if (!path) return { ok: false, output: 'fs.delete: args.path required' }
+      await unlink(sb(ctx).resolve(path))
+      return { ok: true, output: `deleted ${path}` }
+    } catch (e) {
+      return { ok: false, output: `fs.delete failed: ${(e as Error).message}` }
+    }
+  }
+}
+
+export const fsMkdir: Tool = {
+  name: 'fs.mkdir',
+  description: 'Create a directory (nested) inside the sandbox.',
+  mutating: true,
+  async run(args, ctx): Promise<ToolResult> {
+    try {
+      const path = String(args.path ?? '')
+      if (!path) return { ok: false, output: 'fs.mkdir: args.path required' }
+      await mkdir(sb(ctx).resolve(path), { recursive: true })
+      return { ok: true, output: `mkdir ${path}` }
+    } catch (e) {
+      return { ok: false, output: `fs.mkdir failed: ${(e as Error).message}` }
+    }
+  }
+}
+
+export const fsTools: Tool[] = [fsRead, fsWrite, fsList, fsEdit, fsMove, fsCopy, fsDelete, fsMkdir]

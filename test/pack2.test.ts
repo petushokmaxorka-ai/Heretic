@@ -62,7 +62,7 @@ test('repair loop: two violations in a row — honest give-up', async () => {
 })
 
 test('unknown tool error lists the available tools (repair hint)', async () => {
-  const brain = new EchoBrain([fence('fs.delete', { path: 'x' }), 'STEERED'])
+  const brain = new EchoBrain([fence('fs.teleport', { path: 'x' }), 'STEERED'])
   const result = await runAgent('task', {
     brain,
     tools: [...fsTools],

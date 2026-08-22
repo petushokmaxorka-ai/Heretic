@@ -27,6 +27,8 @@ import { fetchTool } from './tools/fetch.js'
 import { planTools } from './tools/plan.js'
 import { llamaStatusTool, getResidents, pickResident } from './tools/llama.js'
 import { memoriaQuery, servicesHealth } from './tools/organs.js'
+import { gitTools } from './tools/git.js'
+import { sysInfo } from './tools/sys.js'
 import { isThinkingLevel, type ThinkingLevel } from './thinking.js'
 import type { ApprovalPolicy, Brain, Step } from './protocol/types.js'
 
@@ -182,7 +184,9 @@ async function main(): Promise<number> {
   ...planTools,
   llamaStatusTool,
   memoriaQuery,
-  servicesHealth
+  servicesHealth,
+  ...gitTools,
+  sysInfo
 ])
 
   if (chatMode) {

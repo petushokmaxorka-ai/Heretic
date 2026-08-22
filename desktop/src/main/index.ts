@@ -39,6 +39,8 @@ import { fetchTool } from '../../../src/tools/fetch'
 import { planTools } from '../../../src/tools/plan'
 import { llamaStatusTool, getResidents, pickResident } from '../../../src/tools/llama'
 import { memoriaQuery, servicesHealth } from '../../../src/tools/organs'
+import { gitTools } from '../../../src/tools/git'
+import { sysInfo } from '../../../src/tools/sys'
 import { discoverSearxng } from '../../../src/discovery'
 
 // voice: the host whisper function (read-only usage — we spawn, never modify)
@@ -54,6 +56,67 @@ let sessionAbort: AbortController | null = null
 let heartLabel = ''
 let chatAbort: AbortController | null = null
 
+
+// ── desktop organs: screen, clipboard, notify, reveal ───
+function desktopOrgans(): import('../../../src/protocol/types').Tool[] {
+  const { desktopCapturer, clipboard, shell } = require('electron') as typeof import('electron')
+  return [
+    {
+      name: 'screen.screenshot',
+      description: 'Capture the primary display (or a window title match) and save a PNG into the sandbox shots/. Approval-gated.',
+      mutating: true,
+      async run(args, ctx) {
+        const title = String(args.title ?? '')
+        const sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 1280, height: 720 } })
+        const source = (title && sources.find((x) => x.name.toLowerCase().includes(title.toLowerCase()))) ?? sources[0]
+        if (!source) return { ok: false, output: 'screen.screenshot: no sources' }
+        const dir = join(ctx.sandboxRoot, 'shots')
+        await import('node:fs/promises').then((fs) => fs.mkdir(dir, { recursive: true }))
+        const name = `screen-${Date.now()}.png`
+        await import('node:fs/promises').then((fs) => fs.writeFile(join(dir, name), source.thumbnail.toPNG()))
+        return { ok: true, output: `screen: ${source.name}\nsaved: shots/${name}` }
+      }
+    },
+    {
+      name: 'clipboard.read',
+      description: 'Read the system clipboard text. Privacy-sensitive: approval-gated.',
+      mutating: true,
+      async run() {
+        const text = clipboard.readText().slice(0, 4000)
+        return text ? { ok: true, output: text } : { ok: true, output: '(clipboard empty)' }
+      }
+    },
+    {
+      name: 'clipboard.write',
+      description: 'Write text to the system clipboard.',
+      mutating: true,
+      async run(args) {
+        clipboard.writeText(String(args.text ?? ''))
+        return { ok: true, output: 'clipboard updated' }
+      }
+    },
+    {
+      name: 'notify',
+      description: 'Show a desktop notification to the user.',
+      mutating: true,
+      async run(args) {
+        new Notification({ title: '◆ ANATHEMETRON', body: String(args.text ?? '').slice(0, 200) }).show()
+        return { ok: true, output: 'notified' }
+      }
+    },
+    {
+      name: 'open.path',
+      description: 'Reveal a sandbox file in the system file manager.',
+      mutating: true,
+      async run(args, ctx) {
+        const p = join(ctx.sandboxRoot, String(args.path ?? ''))
+        await shell.openPath(p)
+        return { ok: true, output: `revealed ${args.path}` }
+      }
+    }
+  ]
+}
+
 function buildTools(): import('../../../src/protocol/types').Tool[] {
   return skullGuardAll([
     ...fsTools,
@@ -66,7 +129,10 @@ function buildTools(): import('../../../src/protocol/types').Tool[] {
     llamaStatusTool,
     memoriaQuery,
     servicesHealth,
-    createBrowserTool(() => win)
+    ...gitTools,
+    sysInfo,
+    createBrowserTool(() => win),
+    ...desktopOrgans()
   ])
 }
 
