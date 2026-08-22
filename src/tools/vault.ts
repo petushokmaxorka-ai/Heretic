@@ -15,7 +15,7 @@ interface VaultEntry {
 }
 
 function vaultPath(ctx: ToolContext): string {
-  return join(ctx.sandboxRoot, 'vault', 'memory.jsonl')
+  return join(ctx.vaultRoot ?? ctx.sandboxRoot, 'vault', 'memory.jsonl')
 }
 
 async function readVault(ctx: ToolContext): Promise<VaultEntry[]> {

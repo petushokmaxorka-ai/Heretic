@@ -46,6 +46,7 @@ const HERETIC_OS = join(process.env.HOME ?? '/home/heretic', 'Heretic-Os')
 const WHISPER_SCRIPT = join(HERETIC_OS, 'organa', 'speech_to_text_service.py')
 const VENV_PY = join(HERETIC_OS, '.swarm-venv', 'bin', 'python')
 const CARDIA_JOURNAL = join(HERETIC_OS, '.heretic', 'cardia_journal.jsonl')
+const VAULT_ROOT = join(app.getPath('userData'), 'vault')
 
 let win: BrowserWindow | null = null
 let searxngBase: string | null | undefined
@@ -203,6 +204,7 @@ ipcMain.handle(IPC.VOICE_STATUS, () => ({
   })
 
 app.whenReady().then(() => {
+  mkdirSync(VAULT_ROOT, { recursive: true })
   createWindow()
   createTray()
   // Body bridge (read-only): the organism's ECG in the tray.
@@ -236,12 +238,23 @@ app.whenReady().then(() => {
     sessionAbort?.abort()
     return { ok: true }
   })
-  ipcMain.handle(IPC.BRAINS_SAVE, (_e, cfg: { url?: string; model?: string; key?: string; codexUrl?: string; codexModel?: string }) => {
+  ipcMain.handle(IPC.WORKSPACE_PICK, async () => {
+    const r = await dialog.showOpenDialog(win ?? new BrowserWindow({ show: false }), {
+      title: 'Workspace folder (persistent agent sandbox)',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    return { ok: !r.canceled, path: r.filePaths[0] ?? '' }
+  })
+
+  ipcMain.handle(IPC.BRAINS_SAVE, (_e, cfg: { url?: string; model?: string; key?: string; codexUrl?: string; codexModel?: string; workspace?: string }) => {
     try {
       const file = join(app.getPath('userData'), 'brains.json')
       const encrypted = Boolean(cfg.key) && safeStorage.isEncryptionAvailable()
       const keyEnc = cfg.key ? (encrypted ? safeStorage.encryptString(cfg.key).toString('base64') : cfg.key) : ''
-      const stored = { url: cfg.url ?? '', model: cfg.model ?? '', keyEnc, encrypted, codexUrl: cfg.codexUrl ?? '', codexModel: cfg.codexModel ?? '' }
+      const prev = fsExists(join(app.getPath('userData'), 'brains.json'))
+        ? (JSON.parse(readFileSync(join(app.getPath('userData'), 'brains.json'), 'utf-8')) as { workspace?: string })
+        : {}
+      const stored = { url: cfg.url ?? '', model: cfg.model ?? '', keyEnc, encrypted, codexUrl: cfg.codexUrl ?? '', codexModel: cfg.codexModel ?? '', workspace: cfg.workspace ?? prev.workspace ?? '' }
       writeFileSync(file, JSON.stringify(stored), 'utf-8')
       return { ok: true }
     } catch (e) {
@@ -252,14 +265,14 @@ app.whenReady().then(() => {
     try {
       const file = join(app.getPath('userData'), 'brains.json')
       const raw = readFileSync(file, 'utf-8')
-      const j = JSON.parse(raw) as { url?: string; model?: string; keyEnc?: string; encrypted?: boolean; codexUrl?: string; codexModel?: string }
+      const j = JSON.parse(raw) as { url?: string; model?: string; keyEnc?: string; encrypted?: boolean; codexUrl?: string; codexModel?: string; workspace?: string }
       let key = ''
       if (j.keyEnc) {
         key = j.encrypted && safeStorage.isEncryptionAvailable()
           ? safeStorage.decryptString(Buffer.from(j.keyEnc, 'base64'))
           : j.keyEnc
       }
-      return { ok: true, url: j.url ?? '', model: j.model ?? '', key, codexUrl: j.codexUrl ?? '', codexModel: j.codexModel ?? '' }
+      return { ok: true, url: j.url ?? '', model: j.model ?? '', key, codexUrl: j.codexUrl ?? '', codexModel: j.codexModel ?? '', workspace: j.workspace ?? '' }
     } catch {
       return { ok: false, url: '', model: '', key: '' }
     }
@@ -345,6 +358,7 @@ app.whenReady().then(() => {
         const r = await runAgent(lastUser, {
           brain: buildBrain(codexBrain),
           persona: payload.persona,
+          vaultRoot: VAULT_ROOT,
           tools: buildTools(),
           sandbox: new Sandbox(join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)),
           policy: policyFor(payload.trust),
@@ -376,12 +390,13 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle(IPC.SESSION_RUN, async (_e, { task, brain, advisor, trust, root }: {
+  ipcMain.handle(IPC.SESSION_RUN, async (_e, { task, brain, advisor, trust, root, workspace }: {
     task: string
     brain: BrainConfig
     advisor?: BrainConfig
     trust: TrustMode
     root?: string
+    workspace?: string
   }) => {
     if (sessionRunning) return { ok: false, error: 'session already running' }
     sessionRunning = true
@@ -393,6 +408,7 @@ app.whenReady().then(() => {
       const tools = buildTools()
       const base = {
         persona: undefined as string | undefined,
+        vaultRoot: VAULT_ROOT,
         tools,
         sandbox: new Sandbox(sandboxRoot),
         policy: policyFor(trust),

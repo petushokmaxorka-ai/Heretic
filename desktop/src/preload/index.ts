@@ -8,7 +8,7 @@ const api = {
     ipcRenderer.invoke(IPC.SESSION_RUN, { task, brain, advisor, trust }),
   scanBrains: (): Promise<{ name: string; baseUrl: string; models: string[]; residents: string[] }[]> =>
     ipcRenderer.invoke(IPC.BRAINS_SCAN),
-  autoSend: (payload: AutoRequestPayload & { persona?: string; images?: string[]; codexUrl?: string; codexModel?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }> =>
+  autoSend: (payload: AutoRequestPayload & { persona?: string; images?: string[]; codexUrl?: string; codexModel?: string; workspace?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC.AUTO_SEND, payload),
   chatSend: (payload: ChatRequestPayload): Promise<{ answer: string; sources: { title: string; url: string; snippet: string }[]; error?: string }> =>
     ipcRenderer.invoke(IPC.CHAT_SEND, payload),
@@ -32,6 +32,7 @@ const api = {
   loadPersona: (): Promise<{ ok: boolean; persona: string }> => ipcRenderer.invoke(IPC.PERSONA_LOAD),
   pickImages: (): Promise<{ ok: boolean; images: string[] }> => ipcRenderer.invoke(IPC.ATTACH_PICK),
   voiceStatus: (): Promise<{ available: boolean; reason: string }> => ipcRenderer.invoke(IPC.VOICE_STATUS),
+  pickWorkspace: (): Promise<{ ok: boolean; path: string }> => ipcRenderer.invoke(IPC.WORKSPACE_PICK),
   voiceTranscribe: (dataB64: string, mime: string): Promise<{ ok: boolean; text: string; error?: string }> =>
     ipcRenderer.invoke(IPC.VOICE_TRANSCRIBE, { dataB64, mime }),
   onCardia: (cb: (b: { cycle: number; lobe: 'A' | 'B'; lobeName: string }) => void): (() => void) => {

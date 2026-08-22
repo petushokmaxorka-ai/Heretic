@@ -52,6 +52,8 @@ export interface ToolResult {
 
 export interface ToolContext {
   sandboxRoot: string
+  /** persistent memory location — userData on desktop, survives reboots */
+  vaultRoot?: string
 }
 
 export interface Tool {

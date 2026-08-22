@@ -21,6 +21,7 @@ import type {
 } from '../protocol/types.js'
 import { Sandbox } from '../tools/sandbox.js'
 import { previewFor } from './preview.js'
+import { trimMessages } from './ctx.js'
 
 const TOOL_FENCE = /```tool\s*([\s\S]*?)```/
 
@@ -39,6 +40,8 @@ export interface AgentOptions {
   onThinking?: (t: string) => void
   /** user persona / custom instructions */
   persona?: string
+  /** persistent vault location (userData) — memory survives reboots */
+  vaultRoot?: string
 }
 
 export interface AgentResult {
@@ -98,7 +101,7 @@ export async function runAgent(task: string, opts: AgentOptions): Promise<AgentR
   }
 
   let malformedStreak = 0
-  const ctx: ToolContext = { sandboxRoot: opts.sandbox.root }
+  const ctx: ToolContext = { sandboxRoot: opts.sandbox.root, vaultRoot: opts.vaultRoot }
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt(opts.tools, opts.sandbox.root, opts.persona) },
     { role: 'user', content: task }
@@ -111,7 +114,7 @@ export async function runAgent(task: string, opts: AgentOptions): Promise<AgentR
     }
     let reply: string
     try {
-      reply = await opts.brain.chat(messages, {
+      reply = await opts.brain.chat(trimMessages(messages), {
         signal: opts.signal,
         onDelta: opts.onThinking
       })

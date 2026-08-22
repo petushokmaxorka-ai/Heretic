@@ -13,7 +13,7 @@ interface StepView {
 }
 
 interface AutoApi {
-  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean; persona?: string; images?: string[]; codexUrl?: string; codexModel?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }>
+  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean; persona?: string; images?: string[]; codexUrl?: string; codexModel?: string; workspace?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }>
 }
 
 interface ChatApi extends AutoApi {
@@ -26,6 +26,7 @@ interface VoiceApi {
   voiceStatus(): Promise<{ available: boolean; reason: string }>
   voiceTranscribe(dataB64: string, mime: string): Promise<{ ok: boolean; text: string; error?: string }>
   onCardia(cb: (b: { cycle: number; lobe: 'A' | 'B'; lobeName: string }) => void): void
+  pickWorkspace(): Promise<{ ok: boolean; path: string }>
 }
 
 interface PersonaApi extends VoiceApi {
@@ -37,8 +38,8 @@ interface PersonaApi extends VoiceApi {
 interface StopApi extends PersonaApi {
   stopSession(): Promise<{ ok: boolean }>
   stopChat(): Promise<{ ok: boolean }>
-  saveBrains(cfg: { url?: string; model?: string; key?: string; codexUrl?: string; codexModel?: string }): Promise<{ ok: boolean }>
-  loadBrains(): Promise<{ ok: boolean; url: string; model: string; key: string; codexUrl?: string; codexModel?: string }>
+  saveBrains(cfg: { url?: string; model?: string; key?: string; codexUrl?: string; codexModel?: string; workspace?: string }): Promise<{ ok: boolean }>
+  loadBrains(): Promise<{ ok: boolean; url: string; model: string; key: string; codexUrl?: string; codexModel?: string; workspace?: string }>
   onThinking(cb: (t: string) => void): () => void
 }
 
@@ -326,10 +327,60 @@ const statusChip = (text: string, observe = false): void => {
   chatNode(div)
 }
 
-const userBubble = (text: string): void => {
+const bubbleActions = (idx: number, text: string): HTMLDivElement => {
+  const row = document.createElement('div')
+  row.className = 'bubble-actions'
+  const mk = (label: string, title: string, fn: () => void): void => {
+    const b = document.createElement('button')
+    b.className = 'act'
+    b.textContent = label
+    b.title = title
+    b.addEventListener('click', (e) => {
+      e.stopPropagation()
+      fn()
+    })
+    row.appendChild(b)
+  }
+  mk('✎', 'edit and re-ask from here', () => {
+    chatHistory.length = idx
+    rerenderFromHistory()
+    const input = $('chat-input') as HTMLInputElement
+    input.value = text
+    input.focus()
+  })
+  mk('↻', 'regenerate this answer', () => {
+    if (chatBusy) return
+    chatHistory.length = idx + 1
+    rerenderFromHistory()
+    dispatch([])
+  })
+  mk('⑂', 'branch: new session from this point', () => {
+    const copy = chatHistory.slice(0, idx + 1).map((m) => ({ role: m.role, content: m.content }))
+    currentSessionId = null
+    chatHistory.length = 0
+    chatHistory.push(...copy)
+    rerenderFromHistory()
+    persistCurrentSession()
+    renderSessionSelect()
+  })
+  return row
+}
+
+const userBubble = (text: string, images: string[] = [], idx = -1): void => {
   const div = document.createElement('div')
   div.className = 'msg-user'
   div.textContent = text
+  if (images.length) {
+    const strip = document.createElement('div')
+    strip.className = 'attach-preview'
+    for (const u of images) {
+      const im = document.createElement('img')
+      im.src = u
+      strip.appendChild(im)
+    }
+    div.appendChild(strip)
+  }
+  if (idx >= 0) div.appendChild(bubbleActions(idx, text))
   chatNode(div)
 }
 
@@ -373,35 +424,19 @@ const currentBrain = (): { kind: 'echo' | 'openai'; url?: string; model?: string
   return selected
 }
 
-const sendChat = (): void => {
-  if (chatBusy) return
-  const input = $('chat-input') as HTMLInputElement
-  const q = input.value.trim()
-  if (!q) return
-  input.value = ''
-  const emptyHero = chatLog.querySelector('.empty')
-  if (emptyHero) emptyHero.remove()
-  const images = attached.slice()
-  attached = []
-  renderAttached()
-  const ub = (() => {
-    const div = document.createElement('div')
-    div.className = 'msg-user'
-    div.textContent = q
-    if (images.length) {
-      const strip = document.createElement('div')
-      strip.className = 'attach-preview'
-      for (const u of images) {
-        const im = document.createElement('img')
-        im.src = u
-        strip.appendChild(im)
-      }
-      div.appendChild(strip)
+const rerenderFromHistory = (): void => {
+  chatLog.innerHTML = ''
+  chatHistory.forEach((m, i) => {
+    if (m.role === 'user') userBubble(m.content, [], i)
+    else {
+      const body = aiMessage()
+      body.innerHTML = mdToHtml(m.content) || ''
     }
-    return chatNode(div)
-  })()
-  void ub
-  chatHistory.push({ role: 'user', content: q })
+  })
+  scrollEnd(chatLog)
+}
+
+const dispatch = (images: string[]): void => {
   streamTarget = aiMessage()
   streamText = ''
   chatBusy = true
@@ -410,14 +445,15 @@ const sendChat = (): void => {
   sendBtn.onclick = () => void api.stopChat()
   void api
     .autoSend({
-      history: [...chatHistory],
+      history: chatHistory.map((m) => ({ role: m.role, content: m.content })),
       brain: currentBrain(),
       trust: ($('trust') as HTMLSelectElement).value,
       auto: ($('auto') as HTMLInputElement).checked,
       persona: persona || undefined,
       images: images.length ? images : undefined,
       codexUrl: ($('cx-url') as HTMLInputElement).value.trim() || undefined,
-      codexModel: ($('cx-model') as HTMLInputElement).value.trim() || undefined
+      codexModel: ($('cx-model') as HTMLInputElement).value.trim() || undefined,
+      workspace: ($('ws-path') as HTMLInputElement).value.trim() || undefined
     })
     .then((r) => {
       chatBusy = false
@@ -437,7 +473,7 @@ const sendChat = (): void => {
         const box = document.createElement('div')
         box.className = 'sources'
         box.innerHTML = r.sources
-          .map((s, i) => `<div class="source-link">[${i + 1}] <b>${s.title}</b> — ${s.url}</div>`)
+          .map((sr, i) => `<div class="source-link">[${i + 1}] <b>${sr.title}</b> — ${sr.url}</div>`)
           .join('')
         chatNode(box)
       }
@@ -445,6 +481,23 @@ const sendChat = (): void => {
       persistCurrentSession()
       streamTarget = null
     })
+}
+
+const sendChat = (): void => {
+  if (chatBusy) return
+  const input = $('chat-input') as HTMLInputElement
+  const q = input.value.trim()
+  if (!q) return
+  input.value = ''
+  const emptyHero = chatLog.querySelector('.empty')
+  if (emptyHero) emptyHero.remove()
+  const images = attached.slice()
+  attached = []
+  renderAttached()
+  persistBrains()
+  userBubble(q, images, chatHistory.length)
+  chatHistory.push({ role: 'user', content: q })
+  dispatch(images)
 }
 
 // ── persona ──────────────────────────────────────────────
@@ -467,6 +520,16 @@ $('persona-save').addEventListener('click', () => {
   persona = ($('persona-text') as HTMLTextAreaElement).value.trim()
   void api.savePersona(persona)
   ;($('persona-modal') as HTMLElement).classList.add('hidden')
+})
+
+// ── workspace ────────────────────────────────────────────
+$('ws-pick').addEventListener('click', () => {
+  void api.pickWorkspace().then((r) => {
+    if (r.ok && r.path) {
+      ;($('ws-path') as HTMLInputElement).value = r.path
+      persistBrains()
+    }
+  })
 })
 
 // ── attachments ──────────────────────────────────────────
@@ -588,6 +651,7 @@ void api.loadBrains().then((b) => {
   ;($('c-key') as HTMLInputElement).value = b.key
   if (b.codexUrl) ($('cx-url') as HTMLInputElement).value = b.codexUrl
   if (b.codexModel) ($('cx-model') as HTMLInputElement).value = b.codexModel
+  if (b.workspace) ($('ws-path') as HTMLInputElement).value = b.workspace
   ;($('brain-label') as HTMLElement).textContent = `${b.model || 'custom'}`
 })
 }
@@ -676,7 +740,8 @@ const persistBrains = (): void => {
     model: ($('c-model') as HTMLInputElement).value.trim(),
     key: ($('c-key') as HTMLInputElement).value.trim(),
     codexUrl: ($('cx-url') as HTMLInputElement).value.trim(),
-    codexModel: ($('cx-model') as HTMLInputElement).value.trim()
+    codexModel: ($('cx-model') as HTMLInputElement).value.trim(),
+    workspace: ($('ws-path') as HTMLInputElement).value.trim()
   })
 }
 $('send').addEventListener('click', () => {

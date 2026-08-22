@@ -20,6 +20,7 @@ export const IPC = {
   VOICE_STATUS: 'voice:status',
   VOICE_TRANSCRIBE: 'voice:transcribe',
   CARDIA_BEAT: 'cardia:beat',
+  WORKSPACE_PICK: 'workspace:pick',
   CHAT_DELTA: 'chat:delta',
   CHAT_STATUS: 'chat:status'
 } as const
