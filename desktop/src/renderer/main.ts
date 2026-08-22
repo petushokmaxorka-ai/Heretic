@@ -13,7 +13,7 @@ interface StepView {
 }
 
 interface AutoApi {
-  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean; persona?: string; images?: string[] }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }>
+  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean; persona?: string; images?: string[]; codexUrl?: string; codexModel?: string }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }>
 }
 
 interface ChatApi extends AutoApi {
@@ -22,7 +22,12 @@ interface ChatApi extends AutoApi {
   onChatStatus(cb: (line: string) => void): () => void
 }
 
-interface PersonaApi {
+interface VoiceApi {
+  voiceStatus(): Promise<{ available: boolean; reason: string }>
+  voiceTranscribe(dataB64: string, mime: string): Promise<{ ok: boolean; text: string; error?: string }>
+}
+
+interface PersonaApi extends VoiceApi {
   savePersona(persona: string): Promise<{ ok: boolean }>
   loadPersona(): Promise<{ ok: boolean; persona: string }>
   pickImages(): Promise<{ ok: boolean; images: string[] }>
@@ -32,7 +37,7 @@ interface StopApi extends PersonaApi {
   stopSession(): Promise<{ ok: boolean }>
   stopChat(): Promise<{ ok: boolean }>
   saveBrains(cfg: { url?: string; model?: string; key?: string }): Promise<{ ok: boolean }>
-  loadBrains(): Promise<{ ok: boolean; url: string; model: string; key: string }>
+  loadBrains(): Promise<{ ok: boolean; url: string; model: string; key: string; codexUrl?: string; codexModel?: string }>
   onThinking(cb: (t: string) => void): () => void
 }
 
@@ -409,7 +414,9 @@ const sendChat = (): void => {
       trust: ($('trust') as HTMLSelectElement).value,
       auto: ($('auto') as HTMLInputElement).checked,
       persona: persona || undefined,
-      images: images.length ? images : undefined
+      images: images.length ? images : undefined,
+      codexUrl: ($('cx-url') as HTMLInputElement).value.trim() || undefined,
+      codexModel: ($('cx-model') as HTMLInputElement).value.trim() || undefined
     })
     .then((r) => {
       chatBusy = false
@@ -487,6 +494,48 @@ $('attach').addEventListener('click', () => {
   })
 })
 
+// ── voice (whisper organ) ────────────────────────────────
+void api.voiceStatus().then((v) => {
+  if (v.available) $('mic').classList.remove('hidden')
+})
+let rec: MediaRecorder | null = null
+let recChunks: Blob[] = []
+$('mic').addEventListener('click', () => {
+  if (rec) {
+    rec.stop()
+    return
+  }
+  void navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+    rec = new MediaRecorder(stream)
+    recChunks = []
+    $('mic').classList.add('rec')
+    rec.ondataavailable = (e) => recChunks.push(e.data)
+    rec.onstop = () => {
+      $('mic').classList.remove('rec')
+      stream.getTracks().forEach((t) => t.stop())
+      rec = null
+      const blob = new Blob(recChunks, { type: 'audio/webm' })
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const b64 = String(reader.result).split(',')[1] ?? ''
+        ;($('mic') as HTMLElement).textContent = '○'
+        void api.voiceTranscribe(b64, 'audio/webm').then((r) => {
+          ;($('mic') as HTMLElement).textContent = '●'
+          if (r.ok && r.text) {
+            const input = $('chat-input') as HTMLInputElement
+            input.value = (input.value ? input.value + ' ' : '') + r.text
+            input.focus()
+          } else if (r.error) {
+            statusChip(`✗ voice: ${r.error}`)
+          }
+        })
+      }
+      reader.readAsDataURL(blob)
+    }
+    rec.start()
+  }).catch((e) => statusChip(`✗ mic: ${String(e)}`))
+})
+
 // ── sessions ─────────────────────────────────────────────
 interface StoredSession { id: string; name: string; updated: number; history: { role: 'user' | 'assistant'; content: string }[] }
 
@@ -528,6 +577,8 @@ void api.loadBrains().then((b) => {
   ;($('c-url') as HTMLInputElement).value = b.url
   ;($('c-model') as HTMLInputElement).value = b.model
   ;($('c-key') as HTMLInputElement).value = b.key
+  if (b.codexUrl) ($('cx-url') as HTMLInputElement).value = b.codexUrl
+  if (b.codexModel) ($('cx-model') as HTMLInputElement).value = b.codexModel
   ;($('brain-label') as HTMLElement).textContent = `${b.model || 'custom'}`
 })
 }
@@ -592,6 +643,8 @@ void api.loadBrains().then((b) => {
   ;($('c-url') as HTMLInputElement).value = b.url
   ;($('c-model') as HTMLInputElement).value = b.model
   ;($('c-key') as HTMLInputElement).value = b.key
+  if (b.codexUrl) ($('cx-url') as HTMLInputElement).value = b.codexUrl
+  if (b.codexModel) ($('cx-model') as HTMLInputElement).value = b.codexModel
   ;($('brain-label') as HTMLElement).textContent = `${b.model || 'custom'}`
 })
 })
@@ -603,6 +656,8 @@ void api.loadBrains().then((b) => {
   ;($('c-url') as HTMLInputElement).value = b.url
   ;($('c-model') as HTMLInputElement).value = b.model
   ;($('c-key') as HTMLInputElement).value = b.key
+  if (b.codexUrl) ($('cx-url') as HTMLInputElement).value = b.codexUrl
+  if (b.codexModel) ($('cx-model') as HTMLInputElement).value = b.codexModel
   ;($('brain-label') as HTMLElement).textContent = `${b.model || 'custom'}`
 })
 
@@ -610,7 +665,9 @@ const persistBrains = (): void => {
   void api.saveBrains({
     url: ($('c-url') as HTMLInputElement).value.trim(),
     model: ($('c-model') as HTMLInputElement).value.trim(),
-    key: ($('c-key') as HTMLInputElement).value.trim()
+    key: ($('c-key') as HTMLInputElement).value.trim(),
+    codexUrl: ($('cx-url') as HTMLInputElement).value.trim(),
+    codexModel: ($('cx-model') as HTMLInputElement).value.trim()
   })
 }
 $('send').addEventListener('click', () => {

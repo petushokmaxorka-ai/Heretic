@@ -17,6 +17,8 @@ export const IPC = {
   PERSONA_SAVE: 'persona:save',
   PERSONA_LOAD: 'persona:load',
   ATTACH_PICK: 'attach:pick',
+  VOICE_STATUS: 'voice:status',
+  VOICE_TRANSCRIBE: 'voice:transcribe',
   CHAT_DELTA: 'chat:delta',
   CHAT_STATUS: 'chat:status'
 } as const
@@ -55,6 +57,8 @@ export interface AutoRequestPayload {
   auto: boolean
   persona?: string
   images?: string[]
+  codexUrl?: string
+  codexModel?: string
 }
 
 export interface StoredBrain {
@@ -62,4 +66,7 @@ export interface StoredBrain {
   model: string
   keyEnc: string
   encrypted: boolean
+  /** Codex Imperium brain: agent sessions prefer it when set */
+  codexUrl?: string
+  codexModel?: string
 }

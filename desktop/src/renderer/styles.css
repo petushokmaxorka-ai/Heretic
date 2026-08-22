@@ -399,3 +399,6 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 .attach-preview { display: flex; gap: 6px; }
 .attach-preview img { height: 34px; border-radius: 8px; border: 1px solid var(--border); }
 .attach-preview .rm { position: relative; }
+
+.iconbtn.hidden { display: none; }
+#mic.rec { color: var(--bad); animation: pulse-stop 1s infinite; }

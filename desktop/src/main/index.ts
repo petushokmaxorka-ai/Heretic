@@ -7,6 +7,10 @@
 import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification, safeStorage, globalShortcut, dialog } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
+import { spawn } from 'node:child_process'
+import { existsSync as fsExists } from 'node:fs'
+import { tmpdir as osTmpdir } from 'node:os'
 import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -35,6 +39,11 @@ import { planTools } from '../../../src/tools/plan'
 import { llamaStatusTool, getResidents, pickResident } from '../../../src/tools/llama'
 import { memoriaQuery, servicesHealth } from '../../../src/tools/organs'
 import { discoverSearxng } from '../../../src/discovery'
+
+// voice: the host whisper function (read-only usage — we spawn, never modify)
+const HERETIC_OS = join(process.env.HOME ?? '/home/heretic', 'Heretic-Os')
+const WHISPER_SCRIPT = join(HERETIC_OS, 'organa', 'speech_to_text_service.py')
+const VENV_PY = join(HERETIC_OS, '.swarm-venv', 'bin', 'python')
 
 let win: BrowserWindow | null = null
 let searxngBase: string | null | undefined
@@ -160,6 +169,36 @@ function askUser(action: string, detail: string, diff?: import('../../../src/pro
   })
 }
 
+ipcMain.handle(IPC.VOICE_STATUS, () => ({
+    available: fsExists(WHISPER_SCRIPT) && fsExists(VENV_PY),
+    reason: fsExists(WHISPER_SCRIPT) ? (fsExists(VENV_PY) ? '' : 'venv python not found') : 'whisper script not found'
+  }))
+
+  ipcMain.handle(IPC.VOICE_TRANSCRIBE, async (_e, { dataB64, mime }: { dataB64: string; mime: string }) => {
+    const ext = mime.includes('webm') ? 'webm' : mime.includes('ogg') ? 'ogg' : 'wav'
+    const file = join(osTmpdir(), `heretic-voice-${Date.now()}.${ext}`)
+    const code =
+      'import sys; sys.path.insert(0, ' + JSON.stringify(join(HERETIC_OS, 'organa')) + '); ' +
+      'from speech_to_text_service import transcribe_audio; print(transcribe_audio(' + JSON.stringify(file) + '))'
+    try {
+      await writeFile(file, Buffer.from(dataB64, 'base64'))
+      const text = await new Promise<string>((resolve, reject) => {
+        const p = spawn(VENV_PY, ['-c', code], { cwd: join(HERETIC_OS, 'organa') })
+        let out = ''
+        let err = ''
+        p.stdout.on('data', (c) => (out += c))
+        p.stderr.on('data', (c) => (err += c))
+        p.on('error', reject)
+        p.on('close', (code2) => (code2 === 0 ? resolve(out.trim()) : reject(new Error(err.slice(0, 300) || `exit ${code2}`))))
+      })
+      return { ok: Boolean(text), text }
+    } catch (e) {
+      return { ok: false, text: '', error: (e as Error).message }
+    } finally {
+      await import('node:fs/promises').then((fs) => fs.unlink(file).catch(() => {}))
+    }
+  })
+
 app.whenReady().then(() => {
   createWindow()
   createTray()
@@ -188,12 +227,12 @@ app.whenReady().then(() => {
     sessionAbort?.abort()
     return { ok: true }
   })
-  ipcMain.handle(IPC.BRAINS_SAVE, (_e, cfg: { url?: string; model?: string; key?: string }) => {
+  ipcMain.handle(IPC.BRAINS_SAVE, (_e, cfg: { url?: string; model?: string; key?: string; codexUrl?: string; codexModel?: string }) => {
     try {
       const file = join(app.getPath('userData'), 'brains.json')
       const encrypted = Boolean(cfg.key) && safeStorage.isEncryptionAvailable()
       const keyEnc = cfg.key ? (encrypted ? safeStorage.encryptString(cfg.key).toString('base64') : cfg.key) : ''
-      const stored = { url: cfg.url ?? '', model: cfg.model ?? '', keyEnc, encrypted }
+      const stored = { url: cfg.url ?? '', model: cfg.model ?? '', keyEnc, encrypted, codexUrl: cfg.codexUrl ?? '', codexModel: cfg.codexModel ?? '' }
       writeFileSync(file, JSON.stringify(stored), 'utf-8')
       return { ok: true }
     } catch (e) {
@@ -204,14 +243,14 @@ app.whenReady().then(() => {
     try {
       const file = join(app.getPath('userData'), 'brains.json')
       const raw = readFileSync(file, 'utf-8')
-      const j = JSON.parse(raw) as { url?: string; model?: string; keyEnc?: string; encrypted?: boolean }
+      const j = JSON.parse(raw) as { url?: string; model?: string; keyEnc?: string; encrypted?: boolean; codexUrl?: string; codexModel?: string }
       let key = ''
       if (j.keyEnc) {
         key = j.encrypted && safeStorage.isEncryptionAvailable()
           ? safeStorage.decryptString(Buffer.from(j.keyEnc, 'base64'))
           : j.keyEnc
       }
-      return { ok: true, url: j.url ?? '', model: j.model ?? '', key }
+      return { ok: true, url: j.url ?? '', model: j.model ?? '', key, codexUrl: j.codexUrl ?? '', codexModel: j.codexModel ?? '' }
     } catch {
       return { ok: false, url: '', model: '', key: '' }
     }
@@ -288,9 +327,14 @@ app.whenReady().then(() => {
         web = v.web
         send(IPC.CHAT_STATUS, { line: `observe: ${v.mode}${web ? ' · web' : ''} · ${v.thinking} (${v.reasons.join(', ')})` })
       }
-      if (mode === 'agent') {
+      const codexBrain: BrainConfig | undefined =
+        payload.brain.kind === 'openai' && payload.codexUrl
+          ? { kind: 'openai', url: payload.codexUrl, model: payload.codexModel || 'default', key: payload.brain.key }
+          : undefined
+      if (mode === 'agent' && codexBrain) {
+        send(IPC.CHAT_STATUS, { line: 'observe: codex brain — ' + (codexBrain.model ?? '') })
         const r = await runAgent(lastUser, {
-          brain: buildBrain(payload.brain),
+          brain: buildBrain(codexBrain),
           persona: payload.persona,
           tools: buildTools(),
           sandbox: new Sandbox(join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)),
