@@ -2,7 +2,7 @@
 <html lang="en" data-theme="mechanicus">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:" />
   <title>Heretic</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -32,6 +32,7 @@
         <span class="spacer"></span>
         <select id="session" class="chip select" title="sessions"></select>
         <button id="new-chat" class="pill-btn">New</button>
+        <button id="persona-btn" class="pill-btn" title="persona / custom instructions">Persona</button>
         <button id="scan" class="pill-btn">Scan brains</button>
       </header>
 
@@ -61,12 +62,15 @@
         </div>
         <div class="composer">
           <div class="composer-box">
+            <button id="attach" class="iconbtn" title="attach images">＋</button>
+            <div id="attach-preview" class="attach-preview"></div>
             <input id="chat-input" placeholder="Спроси что угодно или дай задачу…" autocomplete="off" />
             <button id="send" class="sendbtn" aria-label="send">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
             </button>
           </div>
           <div class="composer-chips">
+            <select id="model-chip" class="chip select" title="model (◉ resident)"></select>
             <label class="chip toggle"><input type="checkbox" id="auto" checked /><span>observe</span></label>
             <label class="chip toggle"><input type="checkbox" id="web" /><span>web</span></label>
             <select id="think" class="chip select">
@@ -99,6 +103,16 @@
           </div>
         </div>
       </section>
+    </div>
+  </div>
+  <div id="persona-modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="panel-title">Persona — custom instructions</div>
+      <textarea id="persona-text" rows="6" placeholder="Говори по-русски. Обращайся ко мне на «ты». Люблю короткие ответы с примерами кода…"></textarea>
+      <div class="modal-actions">
+        <button id="persona-save" class="approve-btn">Save</button>
+        <button id="persona-close" class="deny-btn">Close</button>
+      </div>
     </div>
   </div>
   <script type="module" src="main.ts"></script>

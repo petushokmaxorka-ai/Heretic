@@ -37,6 +37,8 @@ export interface AgentOptions {
   signal?: AbortSignal
   /** live thinking stream (brain deltas) for the ledger */
   onThinking?: (t: string) => void
+  /** user persona / custom instructions */
+  persona?: string
 }
 
 export interface AgentResult {
@@ -46,7 +48,7 @@ export interface AgentResult {
   aborted?: boolean
 }
 
-function systemPrompt(tools: Tool[], root: string): string {
+function systemPrompt(tools: Tool[], root: string, persona?: string): string {
   const list = tools.map((t) => `- ${t.name}: ${t.description}`).join('\n')
   return [
     'You are ANATHEMETRON, the resident organism of HERETIC — a supervised agent. You act ONLY through tools.',
@@ -58,6 +60,7 @@ function systemPrompt(tools: Tool[], root: string): string {
     '{"name":"fs.read","args":{"path":"notes.txt"}}',
     '```',
     `All paths are relative to the sandbox root "${root}". Escape attempts are rejected.`,
+    ...(persona ? ['User persona / custom instructions:', persona] : []),
     'After the tools give you what you need, reply with plain text (no fence) as the final answer.',
     '',
     'Example — tool call, then final answer:',
@@ -97,7 +100,7 @@ export async function runAgent(task: string, opts: AgentOptions): Promise<AgentR
   let malformedStreak = 0
   const ctx: ToolContext = { sandboxRoot: opts.sandbox.root }
   const messages: ChatMessage[] = [
-    { role: 'system', content: systemPrompt(opts.tools, opts.sandbox.root) },
+    { role: 'system', content: systemPrompt(opts.tools, opts.sandbox.root, opts.persona) },
     { role: 'user', content: task }
   ]
 

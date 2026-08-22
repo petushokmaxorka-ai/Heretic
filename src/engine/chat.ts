@@ -22,6 +22,10 @@ export interface RunChatOptions {
   onStatus?: (line: string) => void
   /** cooperative cancellation */
   signal?: AbortSignal
+  /** user persona / custom instructions — appended to the system prompt */
+  persona?: string
+  /** image attachments (data URLs) for the latest user message */
+  images?: string[]
 }
 
 export interface ChatResult {
@@ -49,15 +53,21 @@ export async function runChat(opts: RunChatOptions): Promise<ChatResult> {
       sources.map((r, i) => `[${i + 1}] ${r.title}\n${r.url}\n${r.snippet}`).join('\n\n')
     : ''
 
+  const history = opts.images?.length
+    ? opts.history.map((m, i, arr) =>
+        i === arr.length - 1 && m.role === 'user' ? { ...m, images: [...(m.images ?? []), ...opts.images!] } : m
+      )
+    : opts.history
   const system: ChatMessage = {
     role: 'system',
     content:
       'You are ANATHEMETRON, the resident organism of HERETIC. Answer helpfully, directly, in the user language. ' +
       thinking.directive +
+      (opts.persona ? '\nUser persona / custom instructions:\n' + opts.persona : '') +
       contextBlock
   }
 
-  const answer = await opts.brain.chat([system, ...opts.history], {
+  const answer = await opts.brain.chat([system, ...history], {
     maxTokens: thinking.maxTokens,
     temperature: 0.4,
     onDelta: opts.onDelta,

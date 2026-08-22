@@ -13,7 +13,7 @@ interface StepView {
 }
 
 interface AutoApi {
-  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }>
+  autoSend(payload: { history: { role: 'user' | 'assistant'; content: string }[]; brain: { kind: 'echo' | 'openai'; url?: string; model?: string; key?: string }; trust: string; auto: boolean; persona?: string; images?: string[] }): Promise<{ kind: string; answer: string; sources: { title: string; url: string }[]; ok?: boolean; error?: string }>
 }
 
 interface ChatApi extends AutoApi {
@@ -22,7 +22,13 @@ interface ChatApi extends AutoApi {
   onChatStatus(cb: (line: string) => void): () => void
 }
 
-interface StopApi {
+interface PersonaApi {
+  savePersona(persona: string): Promise<{ ok: boolean }>
+  loadPersona(): Promise<{ ok: boolean; persona: string }>
+  pickImages(): Promise<{ ok: boolean; images: string[] }>
+}
+
+interface StopApi extends PersonaApi {
   stopSession(): Promise<{ ok: boolean }>
   stopChat(): Promise<{ ok: boolean }>
   saveBrains(cfg: { url?: string; model?: string; key?: string }): Promise<{ ok: boolean }>
@@ -184,8 +190,24 @@ $('scan').addEventListener('click', () => {
         ;($('c-url') as HTMLInputElement).value = h.baseUrl
       })
       list.appendChild(row)
+      const chip = $('model-chip') as HTMLSelectElement
+      chip.innerHTML = h.models
+        .map((m) => `<option value="${m}" ${h.residents?.includes(m) ? 'data-res="1"' : ''}>${h.residents?.includes(m) ? '◉' : '○'} ${m}</option>`)
+        .join('')
+      const firstRes = h.models.find((m) => h.residents?.includes(m))
+      if (firstRes) chip.value = firstRes
     }
   })()
+})
+$('model-chip').addEventListener('change', () => {
+  const chip = $('model-chip') as HTMLSelectElement
+  if (!chip.value) return
+  const url = ($('c-url') as HTMLInputElement).value.trim()
+  if (url) {
+    selected = { kind: 'openai', url, model: chip.value }
+    ;($('c-model') as HTMLInputElement).value = chip.value
+    ;($('brain-label') as HTMLElement).textContent = chip.value
+  }
 })
 
 const pickResidentFor = (h: { models: string[]; residents?: string[] }): { model: string } => {
@@ -353,7 +375,26 @@ const sendChat = (): void => {
   input.value = ''
   const emptyHero = chatLog.querySelector('.empty')
   if (emptyHero) emptyHero.remove()
-  userBubble(q)
+  const images = attached.slice()
+  attached = []
+  renderAttached()
+  const ub = (() => {
+    const div = document.createElement('div')
+    div.className = 'msg-user'
+    div.textContent = q
+    if (images.length) {
+      const strip = document.createElement('div')
+      strip.className = 'attach-preview'
+      for (const u of images) {
+        const im = document.createElement('img')
+        im.src = u
+        strip.appendChild(im)
+      }
+      div.appendChild(strip)
+    }
+    return chatNode(div)
+  })()
+  void ub
   chatHistory.push({ role: 'user', content: q })
   streamTarget = aiMessage()
   streamText = ''
@@ -366,7 +407,9 @@ const sendChat = (): void => {
       history: [...chatHistory],
       brain: currentBrain(),
       trust: ($('trust') as HTMLSelectElement).value,
-      auto: ($('auto') as HTMLInputElement).checked
+      auto: ($('auto') as HTMLInputElement).checked,
+      persona: persona || undefined,
+      images: images.length ? images : undefined
     })
     .then((r) => {
       chatBusy = false
@@ -395,6 +438,54 @@ const sendChat = (): void => {
       streamTarget = null
     })
 }
+
+// ── persona ──────────────────────────────────────────────
+let persona = ''
+void api.loadPersona().then((p) => {
+  persona = p.persona
+  ;($('persona-text') as HTMLTextAreaElement).value = persona
+})
+$('persona-btn').addEventListener('click', () => ($('persona-modal') as HTMLElement).classList.remove('hidden'))
+$('persona-close').addEventListener('click', () => ($('persona-modal') as HTMLElement).classList.add('hidden'))
+$('persona-save').addEventListener('click', () => {
+  persona = ($('persona-text') as HTMLTextAreaElement).value.trim()
+  void api.savePersona(persona)
+  ;($('persona-modal') as HTMLElement).classList.add('hidden')
+})
+
+// ── attachments ──────────────────────────────────────────
+let attached: string[] = []
+const renderAttached = (): void => {
+  const box = $('attach-preview')
+  box.innerHTML = ''
+  attached.forEach((dataUrl, i) => {
+    const wrap = document.createElement('div')
+    wrap.className = 'rm'
+    const img = document.createElement('img')
+    img.src = dataUrl
+    const x = document.createElement('button')
+    x.className = 'iconbtn'
+    x.textContent = '✕'
+    x.style.position = 'absolute'
+    x.style.top = '-6px'
+    x.style.right = '-6px'
+    x.addEventListener('click', () => {
+      attached.splice(i, 1)
+      renderAttached()
+    })
+    wrap.appendChild(img)
+    wrap.appendChild(x)
+    box.appendChild(wrap)
+  })
+}
+$('attach').addEventListener('click', () => {
+  void api.pickImages().then((r) => {
+    if (r.ok && r.images.length) {
+      attached = [...attached, ...r.images].slice(0, 4)
+      renderAttached()
+    }
+  })
+})
 
 // ── sessions ─────────────────────────────────────────────
 interface StoredSession { id: string; name: string; updated: number; history: { role: 'user' | 'assistant'; content: string }[] }
@@ -457,6 +548,34 @@ const restoreSession = (id: string): void => {
   scrollEnd(chatLog)
 }
 
+$('session').addEventListener('dblclick', () => {
+  const id = ($('session') as HTMLSelectElement).value
+  if (!id) return
+  const all = loadSessions()
+  const s = all.find((x) => x.id === id)
+  const name = window.prompt('Переименовать сессию:', s?.name ?? '')
+  if (name && s) {
+    s.name = name.slice(0, 40)
+    saveSessions(all)
+    renderSessionSelect()
+  }
+})
+const delBtn = document.createElement('button')
+delBtn.className = 'pill-btn'
+delBtn.textContent = '✕'
+delBtn.title = 'delete session'
+delBtn.addEventListener('click', () => {
+  const id = ($('session') as HTMLSelectElement).value
+  if (!id) return
+  saveSessions(loadSessions().filter((s) => s.id !== id))
+  if (currentSessionId === id) {
+    currentSessionId = null
+    chatHistory.length = 0
+    chatLog.innerHTML = '<div class="empty"><div class="empty-mark">◆</div><div class="empty-title">Новая сессия</div></div>'
+  }
+  renderSessionSelect()
+})
+$('session').after(delBtn)
 $('session').addEventListener('change', () => {
   const id = ($('session') as HTMLSelectElement).value
   if (id) restoreSession(id)

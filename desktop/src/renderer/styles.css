@@ -387,3 +387,15 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 .diff-after { background: var(--ok-soft); color: var(--ok); }
 .sendbtn.stopping { background: var(--bad); animation: pulse-stop 1.2s infinite; }
 @keyframes pulse-stop { 50% { opacity: 0.55; } }
+
+/* daily driver: persona modal, attach, model chip */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal.hidden { display: none; }
+.modal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px; width: 480px; display: flex; flex-direction: column; gap: 12px; box-shadow: var(--shadow-lg); }
+.modal-card textarea { width: 100%; resize: vertical; min-height: 120px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.iconbtn { border: none; background: transparent; color: var(--dim); font-size: 16px; cursor: pointer; padding: 0 6px; }
+.iconbtn:hover { color: var(--accent); }
+.attach-preview { display: flex; gap: 6px; }
+.attach-preview img { height: 34px; border-radius: 8px; border: 1px solid var(--border); }
+.attach-preview .rm { position: relative; }

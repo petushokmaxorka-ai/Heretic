@@ -7,6 +7,8 @@ export type Role = 'system' | 'user' | 'assistant' | 'tool'
 export interface ChatMessage {
   role: Role
   content: string
+  /** optional image attachments (data URLs) — multimodal-capable brains render them */
+  images?: string[]
 }
 
 export interface ChatOptions {

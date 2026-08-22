@@ -1,6 +1,6 @@
 {
   "name": "heretic-desktop",
-  "version": "0.10.3",
+  "version": "0.11.0",
   "description": "HERETIC \u2014 desktop shell. Anathemetron lives inside.",
   "main": "./out/main/index.js",
   "author": {

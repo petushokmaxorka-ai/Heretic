@@ -14,6 +14,9 @@ export const IPC = {
   BRAINS_SAVE: 'brains:save',
   BRAINS_LOAD: 'brains:load',
   SESSION_THINKING: 'session:thinking',
+  PERSONA_SAVE: 'persona:save',
+  PERSONA_LOAD: 'persona:load',
+  ATTACH_PICK: 'attach:pick',
   CHAT_DELTA: 'chat:delta',
   CHAT_STATUS: 'chat:status'
 } as const
@@ -50,6 +53,8 @@ export interface AutoRequestPayload {
   brain: BrainConfig
   trust: TrustMode
   auto: boolean
+  persona?: string
+  images?: string[]
 }
 
 export interface StoredBrain {

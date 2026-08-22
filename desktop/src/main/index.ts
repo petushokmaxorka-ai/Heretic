@@ -4,8 +4,9 @@
 // Engine (Anathemetron) runs here; renderer only sees IPC events.
 // Close-to-tray: the window can die, the organism keeps ticking.
 
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification, safeStorage } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, Notification, safeStorage, globalShortcut, dialog } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -101,11 +102,24 @@ function createWindow(): void {
   }
 }
 
+function summon(): void {
+  if (!win || win.isDestroyed()) {
+    createWindow()
+    return
+  }
+  if (win.isVisible() && win.isFocused()) win.hide()
+  else {
+    win.show()
+    win.focus()
+  }
+}
+
 function createTray(): void {
   tray = new Tray(trayIcon())
   tray.setToolTip('◆ HERETIC — idle')
   tray.setContextMenu(
     Menu.buildFromTemplate([
+      { label: '◆ Summon (Alt+Space)', click: summon },
       { label: '◆ Open', click: () => win?.show() },
       { type: 'separator' },
       { label: '✗ Quit', click: () => { app.exit(0) } }
@@ -149,6 +163,8 @@ function askUser(action: string, detail: string, diff?: import('../../../src/pro
 app.whenReady().then(() => {
   createWindow()
   createTray()
+  const registered = globalShortcut.register('Alt+Space', summon)
+  if (!registered) console.log('[heretic] Alt+Space hotkey not registered (taken by another app)')
   initUpdater((line) => console.log(line))
 
   ipcMain.handle(IPC.BRAINS_SCAN, async () => {
@@ -200,6 +216,40 @@ app.whenReady().then(() => {
       return { ok: false, url: '', model: '', key: '' }
     }
   })
+  ipcMain.handle(IPC.PERSONA_SAVE, (_e, persona: string) => {
+    try {
+      writeFileSync(join(app.getPath('userData'), 'persona.json'), JSON.stringify({ persona }), 'utf-8')
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  })
+  ipcMain.handle(IPC.PERSONA_LOAD, () => {
+    try {
+      const j = JSON.parse(readFileSync(join(app.getPath('userData'), 'persona.json'), 'utf-8')) as { persona?: string }
+      return { ok: true, persona: j.persona ?? '' }
+    } catch {
+      return { ok: true, persona: '' }
+    }
+  })
+  ipcMain.handle(IPC.ATTACH_PICK, async () => {
+    const r = await dialog.showOpenDialog(win ?? new BrowserWindow({ show: false }), {
+      title: 'Attach images',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }]
+    })
+    if (r.canceled || !r.filePaths.length) return { ok: false, images: [] }
+    const images = await Promise.all(
+      r.filePaths.slice(0, 4).map(async (p) => {
+        const ext = p.split('.').pop()?.toLowerCase() ?? 'png'
+        const mime = ext === 'jpg' || ext === 'jpeg' ? 'jpeg' : ext === 'gif' ? 'gif' : ext === 'webp' ? 'webp' : 'png'
+        const buf = await readFile(p)
+        return `data:image/${mime};base64,${buf.toString('base64')}`
+      })
+    )
+    return { ok: true, images }
+  })
+
   ipcMain.handle(IPC.CHAT_SEND, async (_e, payload: ChatRequestPayload) => {
     if (chatRunning) return { answer: '', sources: [], error: 'chat busy' }
     chatRunning = true
@@ -241,6 +291,7 @@ app.whenReady().then(() => {
       if (mode === 'agent') {
         const r = await runAgent(lastUser, {
           brain: buildBrain(payload.brain),
+          persona: payload.persona,
           tools: buildTools(),
           sandbox: new Sandbox(join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)),
           policy: policyFor(payload.trust),
@@ -257,6 +308,8 @@ app.whenReady().then(() => {
         brain: buildBrain(payload.brain),
         thinking,
         web,
+        persona: payload.persona,
+        images: payload.images,
         searxng: web ? (await getSearxng()) ?? undefined : undefined,
         signal: chatAbort.signal,
         onDelta: (d) => send(IPC.CHAT_DELTA, { delta: d }),
@@ -286,6 +339,7 @@ app.whenReady().then(() => {
     try {
       const tools = buildTools()
       const base = {
+        persona: undefined as string | undefined,
         tools,
         sandbox: new Sandbox(sandboxRoot),
         policy: policyFor(trust),
@@ -317,6 +371,10 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
 })
 
 app.on('window-all-closed', () => {

@@ -30,13 +30,24 @@ export class OpenAIBrain implements Brain {
     if (this.apiKey) headers.Authorization = `Bearer ${this.apiKey}`
 
     const stream = Boolean(opts?.onDelta)
+    const outbound = messages.map((m) =>
+      m.images?.length
+        ? {
+            role: m.role,
+            content: [
+              { type: 'text', text: m.content },
+              ...m.images.map((url) => ({ type: 'image_url', image_url: { url } }))
+            ]
+          }
+        : { role: m.role, content: m.content }
+    )
     const body: Record<string, unknown> = {
       model: this.model,
       messages: this.defaults?.promptSuffix
-        ? messages.map((m, i) =>
-            i === 0 && m.role === 'system' ? { ...m, content: m.content + '\n' + this.defaults!.promptSuffix } : m
+        ? outbound.map((m, i) =>
+            i === 0 && m.role === 'system' ? { ...m, content: `${m.content}\n${this.defaults!.promptSuffix}` } : m
           )
-        : messages,
+        : outbound,
       max_tokens: opts?.maxTokens ?? this.defaults?.maxTokens ?? 1024,
       temperature: opts?.temperature ?? this.defaults?.temperature ?? 0.3,
       stream
