@@ -34,6 +34,11 @@ const api = {
   voiceStatus: (): Promise<{ available: boolean; reason: string }> => ipcRenderer.invoke(IPC.VOICE_STATUS),
   voiceTranscribe: (dataB64: string, mime: string): Promise<{ ok: boolean; text: string; error?: string }> =>
     ipcRenderer.invoke(IPC.VOICE_TRANSCRIBE, { dataB64, mime }),
+  onCardia: (cb: (b: { cycle: number; lobe: 'A' | 'B'; lobeName: string }) => void): (() => void) => {
+    const h = (_e: unknown, v: { cycle: number; lobe: 'A' | 'B'; lobeName: string }): void => cb(v)
+    ipcRenderer.on(IPC.CARDIA_BEAT, h)
+    return () => ipcRenderer.removeListener(IPC.CARDIA_BEAT, h)
+  },
   onThinking: (cb: (t: string) => void): (() => void) => {
     const h = (_e: unknown, v: { text: string }): void => cb(v.text)
     ipcRenderer.on(IPC.SESSION_THINKING, h)

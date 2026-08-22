@@ -29,6 +29,7 @@ import { vaultTools } from '../../../src/tools/vault'
 import type { ApprovalPolicy, Brain } from '../../../src/protocol/types'
 import { createBrowserTool } from './browser-tool'
 import { initUpdater } from './updater'
+import { watchCardia, type CardiaBeat } from '../../../src/engine/cardia'
 import { IPC, type BrainConfig, type TrustMode, type ChatRequestPayload, type AutoRequestPayload } from '../shared/ipc'
 import { runChat } from '../../../src/engine/chat'
 import { observe } from '../../../src/engine/observe'
@@ -44,10 +45,12 @@ import { discoverSearxng } from '../../../src/discovery'
 const HERETIC_OS = join(process.env.HOME ?? '/home/heretic', 'Heretic-Os')
 const WHISPER_SCRIPT = join(HERETIC_OS, 'organa', 'speech_to_text_service.py')
 const VENV_PY = join(HERETIC_OS, '.swarm-venv', 'bin', 'python')
+const CARDIA_JOURNAL = join(HERETIC_OS, '.heretic', 'cardia_journal.jsonl')
 
 let win: BrowserWindow | null = null
 let searxngBase: string | null | undefined
 let sessionAbort: AbortController | null = null
+let heartLabel = ''
 let chatAbort: AbortController | null = null
 
 function buildTools(): import('../../../src/protocol/types').Tool[] {
@@ -202,6 +205,12 @@ ipcMain.handle(IPC.VOICE_STATUS, () => ({
 app.whenReady().then(() => {
   createWindow()
   createTray()
+  // Body bridge (read-only): the organism's ECG in the tray.
+  watchCardia(CARDIA_JOURNAL, (b: CardiaBeat) => {
+    heartLabel = ` · ♥ ${b.cycle} ${b.lobe}`
+    tray?.setToolTip(`◆ HERETIC — ${sessionRunning ? 'agent running' : 'idle'}${heartLabel}`)
+    send(IPC.CARDIA_BEAT, b)
+  }, 3000)
   const registered = globalShortcut.register('Alt+Space', summon)
   if (!registered) console.log('[heretic] Alt+Space hotkey not registered (taken by another app)')
   initUpdater((line) => console.log(line))
@@ -377,7 +386,7 @@ app.whenReady().then(() => {
     if (sessionRunning) return { ok: false, error: 'session already running' }
     sessionRunning = true
     sessionAbort = new AbortController()
-    tray?.setToolTip('◆ HERETIC — agent running')
+    tray?.setToolTip(`◆ HERETIC — agent running${heartLabel}`)
     const sandboxRoot = root ?? join(tmpdir(), `heretic-sandbox-${process.getuid?.() ?? 0}`)
     mkdirSync(sandboxRoot, { recursive: true })
     try {
@@ -408,7 +417,7 @@ app.whenReady().then(() => {
       return { ok: false, error: (e as Error).message }
     } finally {
       sessionRunning = false
-      tray?.setToolTip('◆ HERETIC — idle')
+      tray?.setToolTip(`◆ HERETIC — idle${heartLabel}`)
     }
   })
 

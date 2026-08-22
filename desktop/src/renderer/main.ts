@@ -448,6 +448,14 @@ const sendChat = (): void => {
 
 // ── persona ──────────────────────────────────────────────
 let persona = ''
+api.onCardia((b) => {
+  const chip = $('cardia')
+  chip.classList.remove('hidden')
+  chip.textContent = `♥ ${b.cycle} · ${b.lobe}`
+  chip.classList.remove('beat')
+  void chip.offsetWidth
+  chip.classList.add('beat')
+})
 void api.loadPersona().then((p) => {
   persona = p.persona
   ;($('persona-text') as HTMLTextAreaElement).value = persona
