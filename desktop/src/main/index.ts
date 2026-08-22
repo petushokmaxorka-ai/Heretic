@@ -47,6 +47,7 @@ import { procTextTools } from '../../../src/tools/proc-text'
 import { cryptoExtraTools } from '../../../src/tools/crypto-extra'
 import { infoTools } from '../../../src/tools/info'
 import { organExtraTools } from '../../../src/tools/organs-extra'
+import { deepTools } from '../../../src/tools/deep'
 import { connectMcp, stopFleet, type McpFleet } from '../../../src/mcp/manager'
 import { discoverSearxng } from '../../../src/discovery'
 
@@ -155,6 +156,7 @@ function buildTools(): import('../../../src/protocol/types').Tool[] {
     ...cryptoExtraTools,
     ...infoTools,
     ...organExtraTools,
+    ...deepTools,
     ...(mcpFleet?.tools ?? []),
     createBrowserTool(() => win),
     ...desktopOrgans()

@@ -35,6 +35,7 @@ import { procTextTools } from './tools/proc-text.js'
 import { cryptoExtraTools } from './tools/crypto-extra.js'
 import { infoTools } from './tools/info.js'
 import { organExtraTools } from './tools/organs-extra.js'
+import { deepTools } from './tools/deep.js'
 import { askUser, makeSubtaskTool } from './tools/agent-extra.js'
 import { isThinkingLevel, type ThinkingLevel } from './thinking.js'
 import type { ApprovalPolicy, Brain, Step } from './protocol/types.js'
@@ -200,6 +201,7 @@ async function main(): Promise<number> {
   ...cryptoExtraTools,
   ...infoTools,
   ...organExtraTools,
+  ...deepTools,
   askUser
 ])
 
