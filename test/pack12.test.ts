@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { httpRequest, dnsLookup, portCheck } from '../src/tools/net.js'
-import { processList, textDiff, jsonFormat } from '../src/tools/proc-text.js'
+import { processList, textDiff, jsonFormat, formatWinProcs } from '../src/tools/proc-text.js'
 import { cryptoEncrypt, cryptoDecrypt, cryptoRandom, hashFile } from '../src/tools/crypto-extra.js'
 import { wikiSearch } from '../src/tools/info.js'
 import { modeGet } from '../src/tools/organs-extra.js'
@@ -80,6 +80,23 @@ test('process.list: header + rows; text.diff counts; json.format validates', asy
   assert.match(json.output, /"a": 2/)
   const bad = await jsonFormat.run({ text: '{broken' }, { sandboxRoot: dir })
   assert.equal(bad.ok, false)
+})
+
+test('process.list (windows): Get-Process JSON rendered as ps-aux table, sorted', () => {
+  const json = JSON.stringify([
+    { user: 'HOST\\anath', id: 10, cpu: 5, up: 100, rss: 1024 * 1024, cmd: 'idle-ish' },
+    { user: null, id: 20, cpu: 50, up: 100, rss: 512 * 1024, cmd: 'busy' },
+    { user: 'NT AUTHORITY\\SYSTEM', id: 4, cpu: null, up: 0, rss: 4 * 1024 * 1024, cmd: 'System' }
+  ])
+  const byCpu = formatWinProcs('\uFEFF' + json, 'cpu', 2, 8 * 1024 * 1024).split('\n')
+  assert.match(byCpu[0] ?? '', /USER\s+PID\s+%CPU\s+%MEM\s+RSS\s+COMMAND/)
+  assert.equal(byCpu.length, 3)
+  assert.match(byCpu[1] ?? '', /^\?\s+20\s+50\.0\s+6\.3\s+512 busy$/)
+  assert.match(byCpu[2] ?? '', /^HOST\\anath\s+10\s+5\.0\s+12\.5\s+1024 idle-ish$/)
+  const byMem = formatWinProcs(json, 'mem', 1, 8 * 1024 * 1024).split('\n')
+  assert.match(byMem[1] ?? '', /^NT AUTHORITY\\SYSTEM\s+4\s+0\.0\s+50\.0\s+4096 System$/)
+  const single = formatWinProcs(JSON.stringify({ id: 1, cpu: 1, up: 4, rss: 0, cmd: 'solo' }), 'cpu', 5, 1024)
+  assert.match(single, /\n\?\s+1\s+25\.0\s+0\.0\s+0 solo$/)
 })
 
 test('crypto: AES roundtrip, random bounds, hash.file known value', async () => {
