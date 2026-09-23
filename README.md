@@ -17,9 +17,11 @@
 
 ## Quick start
 
+Requires Node.js 22.12+ (Electron 43's minimum; the engine alone runs on 20.19+).
+
 ```bash
 git clone https://github.com/petushokmaxorka-ai/Heretic && cd Heretic
-npm install && npm test          # engine: 70+ hermetic tests, no GPU needed
+npm install && npm test          # engine: 140+ tests, no GPU or model runtime needed
 cd desktop && npm install && npm run dev
 ```
 
@@ -31,6 +33,13 @@ cd desktop && npm install && npm run dev
 | Windows | [Heretic-win-portable.zip](https://github.com/petushokmaxorka-ai/Heretic/releases/latest/download/Heretic-win-portable.zip) (portable — no auto-update) |
 | Linux | [Heretic.AppImage](https://github.com/petushokmaxorka-ai/Heretic/releases/latest/download/Heretic.AppImage) (auto-updates) |
 | Linux | [Heretic.tar.gz](https://github.com/petushokmaxorka-ai/Heretic/releases/latest/download/Heretic.tar.gz) (no auto-update) |
+
+Linux notes: the AppImage needs FUSE 2 (`sudo apt install libfuse2t64` on Ubuntu 24.04, `libfuse2` on 22.04).
+Ubuntu 24.04+ restricts the user namespaces Chromium's sandbox relies on. For the tar.gz, keep the sandbox by
+running `sudo chown root:root chrome-sandbox && sudo chmod 4755 chrome-sandbox` in the unpacked folder; the
+AppImage cannot carry a setuid helper, so start it with `--no-sandbox` (its generated desktop entry already does).
+If `npm run dev` aborts with "The SUID sandbox helper binary was found, but is not configured correctly",
+apply the same chown/chmod to `desktop/node_modules/electron/dist/chrome-sandbox`.
 
 ## Safety laws
 
@@ -74,7 +83,7 @@ release pipeline (tag v* → AppImage + tar.gz + NSIS).
 ```bash
 npm install
 npm run build
-npm test                      # hermetic: no GPU, no services
+npm test                      # no GPU or model runtime needed
 
 # scan localhost for brains (llama-swap :11436 / ollama :11434 / lmstudio :1234)
 node out/src/cli.js --list-brains

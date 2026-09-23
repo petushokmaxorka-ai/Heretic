@@ -47,7 +47,7 @@
         }
       ],
       "category": "Development",
-      "icon": "icons/256.png",
+      "icon": "../icons",
       "artifactName": "Heretic.${ext}"
     },
     "win": {
@@ -65,7 +65,7 @@
           ]
         }
       ],
-      "icon": "icons/256.png",
+      "icon": "../icons/256.png",
       "artifactName": "Heretic-win-portable.${ext}"
     },
     "publish": [
@@ -82,7 +82,7 @@
       }
     ],
     "mac": {
-      "icon": "icons/512.png",
+      "icon": "../icons/512.png",
       "target": [
         {
           "target": "dmg",

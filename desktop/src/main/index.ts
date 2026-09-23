@@ -13,7 +13,7 @@ import { existsSync as fsExists } from 'node:fs'
 import { tmpdir as osTmpdir } from 'node:os'
 import { mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { runAgent } from '../../../src/engine/agent'
 import { runCouncil } from '../../../src/engine/council'
@@ -390,7 +390,7 @@ app.whenReady().then(() => {
     mkdirSync(dest, { recursive: true })
     const copied: string[] = []
     for (const f of r.filePaths.slice(0, 6)) {
-      const name = f.split('/').pop() ?? 'doc'
+      const name = basename(f) || 'doc'
       copyFileSync(f, join(dest, name))
       copied.push(name)
     }
